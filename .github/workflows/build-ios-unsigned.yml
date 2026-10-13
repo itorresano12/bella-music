@@ -1,0 +1,77 @@
+name: Build Bella Music iOS Unsigned (Sideloadly / AltStore)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - main
+
+jobs:
+  build-unsigned-ipa:
+    name: Build Unsigned iOS IPA
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Ensure iOS Platform Scaffolding
+        run: |
+          if [ ! -f "ios/Runner.xcodeproj/project.pbxproj" ]; then
+            echo "⚡ Creando estructura nativa iOS com.bellamusic.app..."
+            flutter create . --platforms=ios --org=com.bellamusic
+          fi
+
+      - name: Configure iOS Info.plist (Permissions & Name)
+        run: |
+          PLIST="ios/Runner/Info.plist"
+          echo "Configurando Info.plist para Bella Music..."
+          
+          # Nombre comercial en iPhone
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'Bella Music'" "$PLIST" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string 'Bella Music'" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleName 'Bella Music'" "$PLIST" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :CFBundleName string 'Bella Music'" "$PLIST"
+          
+          # Audio en segundo plano (Background Audio)
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string audio" "$PLIST" 2>/dev/null || true
+          
+          # Acceso a red local para descubrimiento SSDP/DLNA (altavoces Wi-Fi)
+          /usr/libexec/PlistBuddy -c "Set :NSLocalNetworkUsageDescription 'Bella Music necesita acceso a la red local para descubrir y reproducir música en tus altavoces Wi-Fi Linkplay.'" "$PLIST" 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Add :NSLocalNetworkUsageDescription string 'Bella Music necesita acceso a la red local para descubrir y reproducir música en tus altavoces Wi-Fi Linkplay.'" "$PLIST"
+          
+          /usr/libexec/PlistBuddy -c "Add :NSBonjourServices array" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :NSBonjourServices:0 string '_http._tcp'" "$PLIST" 2>/dev/null || true
+
+      - name: Get Dependencies & Install Pods
+        run: |
+          flutter pub get
+          cd ios
+          pod install --repo-update
+          cd ..
+
+      - name: Build iOS (Release, No Code Signing)
+        run: |
+          echo "Compilando aplicación iOS sin firmar..."
+          flutter build ios --release --no-codesign
+
+      - name: Package Payload into .IPA for Sideloadly
+        run: |
+          echo "Empaquetando Runner.app en formato .ipa estándar..."
+          mkdir -p Payload
+          cp -r build/ios/iphoneos/Runner.app Payload/
+          zip -r BellaMusic-Release-Unsigned.ipa Payload
+          echo "✅ Archivo BellaMusic-Release-Unsigned.ipa generado con éxito."
+
+      - name: Upload Unsigned IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BellaMusic-iOS-Sideloadly-IPA
+          path: BellaMusic-Release-Unsigned.ipa
+          retention-days: 30

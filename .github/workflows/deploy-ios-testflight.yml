@@ -151,3 +151,4 @@ jobs:
           security delete-keychain $RUNNER_TEMP/app-signing.keychain-db 2>/dev/null || true
           rm -rf ~/Library/MobileDevice/Provisioning\ Profiles/* 2>/dev/null || true
           rm -rf ~/.appstoreconnect/private_keys 2>/dev/null || true
+
