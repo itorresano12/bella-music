@@ -27,18 +27,17 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Prepare Android Gradle Wrapper
+      - name: Ensure Gradle Wrapper Executable
         run: |
-          cd android
-          gradle wrapper --gradle-version 8.5
-          chmod +x gradlew
-          cd ..
+          chmod +x android/gradlew
 
       - name: Get Dependencies
         run: flutter pub get
 
-      - name: Build APK (Release)
-        run: flutter build apk --release
+      - name: Build APK
+        run: |
+          cd android && chmod +x gradlew && cd ..
+          flutter build apk --release
 
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
