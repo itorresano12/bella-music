@@ -47,7 +47,7 @@ class _NowPlayingBarState extends ConsumerState<NowPlayingBar>
     final discovery    = ref.watch(discoveryServiceProvider);
     final audioNotifier = ref.read(audioServiceProvider.notifier);
 
-    final track = audioState.currentTrack;
+    final track = audioState.currentTrack ?? ref.watch(currentTrackProvider);
     if (track == null) return const SizedBox.shrink();
 
     // Constant-speed infinite spin only when playing
@@ -189,16 +189,16 @@ class _NowPlayingBarState extends ConsumerState<NowPlayingBar>
                       IconButton(
                         icon: const Icon(Icons.skip_previous_rounded),
                         color: AppTheme.onSurface,
-                        onPressed: () {},
+                        onPressed: () => audioNotifier.skipToPrevious(),
                       ),
                       _PlayPauseButton(
                         isPlaying: audioState.isPlaying,
-                        onTap: audioNotifier.togglePlayPause,
+                        onTap: () => audioNotifier.togglePlayPause(),
                       ),
                       IconButton(
                         icon: const Icon(Icons.skip_next_rounded),
                         color: AppTheme.onSurface,
-                        onPressed: () {},
+                        onPressed: () => audioNotifier.skipToNext(),
                       ),
                     ],
                   ),

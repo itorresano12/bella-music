@@ -111,6 +111,25 @@ ST: urn:schemas-upnp-org:device:MediaRenderer:1\r
     );
   }
 
+  void switchToLocal() {
+    _logger.i('SSDP: Usuario conmutó a altavoz local del teléfono.');
+    state = state.copyWith(
+      mode: AudioOutputMode.localFallback,
+      speakerFriendlyName: 'Altavoz del Teléfono',
+    );
+  }
+
+  void switchToWifiSpeaker() {
+    if (state.speakerIp != null) {
+      state = state.copyWith(
+        mode: AudioOutputMode.wifiSpeaker,
+        speakerFriendlyName: 'Altavoz Wi-Fi (${state.speakerIp})',
+      );
+    } else {
+      startDiscovery();
+    }
+  }
+
   // ─── Private helpers ────────────────────────────────────────────────────────
 
   /// Escucha el socket multicast y enlaza con el PRIMER MediaRenderer que responda

@@ -1,18 +1,21 @@
 // lib/providers/playlist_provider.dart
-// Mock data provider — replace with real Deezer/Amazon API calls
-// using tokens from SecureStorageService.
+// Reactive state management with Riverpod:
+//   • Dynamic playlists & tracks connected to Deezer API
+//   • Active navigation tab provider (0: Inicio, 1: Buscar, 2: Librería, 3: Ajustes)
+//   • Real-time track search provider
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bella_music/models/playlist_model.dart';
+import 'package:bella_music/services/deezer_service.dart';
 
-// ─── Mock Playlists ────────────────────────────────────────────────────────
+// ─── Initial Fallback Data ──────────────────────────────────────────────────
 
-final _mockPlaylists = [
+final _initialPlaylists = [
   const Playlist(
-    id: '1',
+    id: '15821465801',
     name: 'Tasty Santander',
-    coverUrl: 'https://picsum.photos/seed/tasty/400/400',
-    trackCount: 32,
+    coverUrl: 'https://cdn-images.dzcdn.net/images/cover/08304eb172098540c635de98530d4929/250x250-000000-80-0-0.jpg',
+    trackCount: 321,
     source: 'deezer',
   ),
   const Playlist(
@@ -36,16 +39,9 @@ final _mockPlaylists = [
     trackCount: 27,
     source: 'amazon',
   ),
-  const Playlist(
-    id: '5',
-    name: 'Chill Roots',
-    coverUrl: 'https://picsum.photos/seed/chill/400/400',
-    trackCount: 22,
-    source: 'local',
-  ),
 ];
 
-final _mockTracks = [
+final _initialTracks = [
   const Track(
     id: 't1',
     title: 'Neon Dreams',
@@ -75,27 +71,106 @@ final _mockTracks = [
   ),
 ];
 
-// ─── Providers ─────────────────────────────────────────────────────────────
+// ─── Playlists Notifier ─────────────────────────────────────────────────────
 
-final playlistsProvider = Provider<List<Playlist>>((ref) => _mockPlaylists);
+class PlaylistsNotifier extends StateNotifier<List<Playlist>> {
+  PlaylistsNotifier() : super(_initialPlaylists) {
+    _autoLoadRealPlaylists();
+  }
 
-final currentTrackProvider = StateProvider<Track?>((ref) => _mockTracks.first);
+  Future<void> _autoLoadRealPlaylists() async {
+    try {
+      final real = await DeezerService.instance.searchPlaylists('Tasty Santander');
+      if (real.isNotEmpty) {
+        state = real;
+      }
+    } catch (_) {}
+  }
 
-final recentTracksProvider = Provider<List<Track>>((ref) => _mockTracks);
+  void setPlaylists(List<Playlist> list) {
+    state = list;
+  }
+}
 
-// Services available
-final servicesProvider = Provider<List<Map<String, String>>>((ref) => [
-  {
-    'name': 'Deezer',
-    'icon': '🎵',
-    'color': '#EF4444',
-    'status': 'connected',
-  },
-  {
-    'name': 'Amazon Music',
-    'icon': '🎶',
-    'color': '#F97316',
-    'status': 'connected',
-  },
-]);
+final playlistsProvider =
+    StateNotifierProvider<PlaylistsNotifier, List<Playlist>>(
+  (ref) => PlaylistsNotifier(),
+);
 
+// ─── Tracks Notifier ────────────────────────────────────────────────────────
+
+class RecentTracksNotifier extends StateNotifier<List<Track>> {
+  RecentTracksNotifier() : super(_initialTracks) {
+    _autoLoadRealTracks();
+  }
+
+  Future<void> _autoLoadRealTracks() async {
+    try {
+      final playlists = await DeezerService.instance.searchPlaylists('Tasty Santander');
+      if (playlists.isNotEmpty) {
+        final tracks = await DeezerService.instance.getPlaylistTracks(playlists.first.id);
+        if (tracks.isNotEmpty) {
+          state = tracks;
+        }
+      }
+    } catch (_) {}
+  }
+
+  void setTracks(List<Track> list) {
+    state = list;
+  }
+}
+
+final recentTracksProvider =
+    StateNotifierProvider<RecentTracksNotifier, List<Track>>(
+  (ref) => RecentTracksNotifier(),
+);
+
+// ─── Currently Selected Track ───────────────────────────────────────────────
+
+final currentTrackProvider = StateProvider<Track?>((ref) {
+  final tracks = ref.watch(recentTracksProvider);
+  return tracks.isNotEmpty ? tracks.first : null;
+});
+
+// ─── Navigation Tab Index (0: Inicio, 1: Buscar, 2: Librería, 3: Ajustes) ──
+
+final currentTabProvider = StateProvider<int>((ref) => 0);
+
+// ─── Search Tab State ───────────────────────────────────────────────────────
+
+final searchQueryProvider = StateProvider<String>((ref) => '');
+final searchTracksProvider = StateProvider<List<Track>>((ref) => []);
+final isSearchingProvider = StateProvider<bool>((ref) => false);
+
+// ─── Services Notifier ──────────────────────────────────────────────────────
+
+class ServicesNotifier extends StateNotifier<List<Map<String, String>>> {
+  ServicesNotifier()
+      : super([
+          {
+            'name': 'Deezer',
+            'icon': '🎵',
+            'color': '#EF4444',
+            'status': 'connected',
+          },
+          {
+            'name': 'Amazon Music',
+            'icon': '🎶',
+            'color': '#F97316',
+            'status': 'connected',
+          },
+        ]);
+
+  void updateStatus(String name, String status) {
+    state = [
+      for (final s in state)
+        if (s['name'] == name) {...s, 'status': status} else s
+    ];
+  }
+}
+
+final servicesProvider =
+    StateNotifierProvider<ServicesNotifier, List<Map<String, String>>>(
+  (ref) => ServicesNotifier(),
+);

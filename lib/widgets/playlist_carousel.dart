@@ -1,5 +1,6 @@
 // lib/widgets/playlist_carousel.dart
-// Horizontal scrolling carousel with large rounded cards and parallax covers.
+// Horizontal scrolling carousel with interactive playlist cards.
+// Tapping a playlist loads its real tracks from Deezer/Amazon and starts playback.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:bella_music/models/playlist_model.dart';
+import 'package:bella_music/providers/playlist_provider.dart';
+import 'package:bella_music/services/audio_service.dart';
+import 'package:bella_music/services/deezer_service.dart';
 import 'package:bella_music/theme/app_theme.dart';
 
 class PlaylistCarousel extends ConsumerWidget {
@@ -33,19 +37,45 @@ class PlaylistCarousel extends ConsumerWidget {
   }
 }
 
-class _PlaylistCard extends StatelessWidget {
+class _PlaylistCard extends ConsumerWidget {
   const _PlaylistCard({required this.playlist, required this.index});
 
   final Playlist playlist;
   final int index;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       width: 160,
       margin: const EdgeInsets.only(right: 16),
       child: GestureDetector(
-        onTap: () {}, // TODO: open playlist detail
+        onTap: () async {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              duration: const Duration(seconds: 1),
+              backgroundColor: const Color(0xFF1E293B),
+              content: Text(
+                'Cargando canciones de ${playlist.name}...',
+                style: const TextStyle(color: Colors.white, fontSize: 12),
+              ),
+            ),
+          );
+
+          if (playlist.source == 'deezer' && playlist.id.isNotEmpty) {
+            final tracks = await DeezerService.instance.getPlaylistTracks(playlist.id);
+            if (tracks.isNotEmpty) {
+              ref.read(recentTracksProvider.notifier).setTracks(tracks);
+              ref.read(audioServiceProvider.notifier).playTrack(tracks.first);
+              return;
+            }
+          }
+
+          // Fallback: play existing tracks
+          final currentTracks = ref.read(recentTracksProvider);
+          if (currentTracks.isNotEmpty) {
+            ref.read(audioServiceProvider.notifier).playTrack(currentTracks.first);
+          }
+        },
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
@@ -128,7 +158,7 @@ class _PlaylistCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                // Play button overlay on tap
+                // Play button overlay
                 Positioned(
                   top: 12,
                   right: 12,
@@ -176,4 +206,3 @@ class _SourceBadge extends StatelessWidget {
     );
   }
 }
-
