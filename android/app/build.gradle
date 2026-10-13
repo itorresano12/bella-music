@@ -1,0 +1,103 @@
+// android/app/build.gradle
+// SECURITY: R8/ProGuard hardening with minifyEnabled + shrinkResources.
+// Obfuscation prevents APK reverse-engineering and internal key leakage.
+
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode') ?: '1'
+def flutterVersionName = localProperties.getProperty('flutter.versionName') ?: '1.0'
+
+android {
+    namespace "com.bellamusic.app"
+    compileSdk 34
+    ndkVersion "25.1.8937393"
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+
+    defaultConfig {
+        applicationId "com.bellamusic.app"
+        minSdk 24
+        targetSdk 34
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+
+        // Network security config — enforces HTTPS for external calls
+        manifestPlaceholders['networkSecurityConfig'] = '@xml/network_security_config'
+    }
+
+    // ─── Keystore signing (production) ────────────────────────────────────
+    // signingConfigs {
+    //     release {
+    //         storeFile     file(localProperties.getProperty('keystore.path') ?: 'keystore.jks')
+    //         storePassword localProperties.getProperty('keystore.storePassword')
+    //         keyAlias      localProperties.getProperty('keystore.keyAlias')
+    //         keyPassword   localProperties.getProperty('keystore.keyPassword')
+    //     }
+    // }
+
+    buildTypes {
+        debug {
+            minifyEnabled false
+            shrinkResources false
+            debuggable true
+        }
+
+        release {
+            // ── SECURITY HARDENING: R8 + ProGuard obfuscation ──────────────
+            minifyEnabled true        // Enables R8 code minification & obfuscation
+            shrinkResources true      // Removes unused resources from the APK
+            debuggable false
+            // signingConfig signingConfigs.release
+
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    // Packaging: strip native debug symbols for security
+    packagingOptions {
+        resources {
+            excludes += [
+                'META-INF/DEPENDENCIES',
+                'META-INF/LICENSE',
+                'META-INF/LICENSE.txt',
+                'META-INF/NOTICE',
+                'META-INF/*.kotlin_module',
+            ]
+        }
+        jniLibs {
+            // Strip debug symbols from native libraries
+            keepDebugSymbols -= ['**/*.so']
+        }
+    }
+}
+
+flutter {
+    source '../..'
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+}

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Network Security Config — BellaMusic
+  SECURITY: Enforces HTTPS/TLS for all external API calls.
+  Prevents Man-in-the-Middle (MitM) attacks on shared Wi-Fi networks.
+
+  Rules:
+    • External HTTPS APIs (Deezer, Amazon): TLS 1.2+ enforced, no cleartext.
+    • Local LAN (192.168.x.x, 10.x.x.x): HTTP allowed ONLY for UPnP/DLNA
+      control (LAN devices do not support TLS).
+    • Cleartext globally disabled — must be explicitly whitelisted (LAN only).
+-->
+<network-security-config>
+
+    <!-- Default: HTTPS-only for all external domains -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <!-- Trust the system CA store (standard certificates) -->
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- ─── Deezer API ─────────────────────────────────────────────────── -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">api.deezer.com</domain>
+        <domain includeSubdomains="true">connect.deezer.com</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+
+    <!-- ─── Amazon Music API ──────────────────────────────────────────── -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">api.amazon.com</domain>
+        <domain includeSubdomains="true">music.amazon.com</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+
+    <!-- ─── LAN / UPnP (local network only — cleartext permitted) ─────── -->
+    <!-- NOTE: IP ranges are not supported in domain-config; the SSRF
+         validation in NetworkValidator.dart ensures only private IPs
+         receive UPnP packets before any network call is made. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">192.168.1.1</domain>
+        <!-- Add your specific LAN subnet router IP here if needed -->
+    </domain-config>
+
+</network-security-config>

@@ -1,0 +1,70 @@
+name: bella_music
+description: BellaMusic — Premium streaming controller with DLNA/Linkplay support and local audio fallback.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI & Typography
+  google_fonts: ^6.2.1
+  cupertino_icons: ^1.0.8
+
+  # State Management
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # Networking
+  http: ^1.2.1
+
+  # Secure Storage (Keystore/Keychain hardware encryption)
+  flutter_secure_storage: ^9.2.2
+
+  # Audio Playback (local fallback)
+  just_audio: ^0.9.40
+  audio_session: ^0.1.21
+
+  # Connectivity
+  connectivity_plus: ^6.0.3
+  network_info_plus: ^5.0.0
+
+  # Animations & UI Effects
+  flutter_animate: ^4.5.0
+  shimmer: ^3.0.0
+  cached_network_image: ^3.3.1
+
+  # Utils
+  uuid: ^4.4.0
+  equatable: ^2.0.5
+  intl: ^0.19.0
+  xml: ^6.5.0
+  logger: ^2.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.11
+  riverpod_generator: ^2.4.3
+  custom_lint: ^0.6.7
+  riverpod_lint: ^2.3.13
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/fonts/
+
+  fonts:
+    - family: Montserrat
+      fonts:
+        - asset: assets/fonts/Montserrat-Regular.ttf
+        - asset: assets/fonts/Montserrat-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Montserrat-SemiBold.ttf
+          weight: 600
