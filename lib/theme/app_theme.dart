@@ -58,7 +58,7 @@ class AppTheme {
       error:     Color(0xFFEF4444),
     ),
     textTheme: _textTheme,
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: surface,
       elevation: 0,
       shape: RoundedRectangleBorder(
