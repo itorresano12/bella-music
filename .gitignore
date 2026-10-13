@@ -12,6 +12,7 @@ server.js
 .history
 .svn/
 migrate_working_dir/
+build-artifacts/
 
 # IntelliJ related
 *.iml
