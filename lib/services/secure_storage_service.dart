@@ -69,3 +69,4 @@ class SecureStorageService {
     _logger.w('All secure storage cleared (logout).');
   }
 }
+

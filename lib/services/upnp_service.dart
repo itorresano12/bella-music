@@ -135,3 +135,4 @@ class UpnpService {
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&apos;');
 }
+

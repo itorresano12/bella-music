@@ -50,3 +50,4 @@ class BellaMusicApp extends ConsumerWidget {
     );
   }
 }
+

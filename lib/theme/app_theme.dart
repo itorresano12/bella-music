@@ -89,3 +89,4 @@ class AppTheme {
     iconTheme: const IconThemeData(color: onSurface, size: 24),
   );
 }
+

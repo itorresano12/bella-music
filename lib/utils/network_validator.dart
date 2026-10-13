@@ -44,3 +44,4 @@ class NetworkValidator {
     return uri != null && uri.scheme == 'https';
   }
 }
+

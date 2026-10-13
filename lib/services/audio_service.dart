@@ -167,3 +167,4 @@ final audioServiceProvider =
     StateNotifierProvider<AudioNotifier, AudioState>(
   (ref) => AudioNotifier(ref),
 );
+

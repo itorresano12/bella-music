@@ -116,3 +116,4 @@ The app will:
 ---
 
 *Built with Flutter · Riverpod · just_audio · flutter_secure_storage*
+

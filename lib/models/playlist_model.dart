@@ -43,3 +43,4 @@ class Track extends Equatable {
   @override
   List<Object?> get props => [id, title, artist, streamUrl];
 }
+

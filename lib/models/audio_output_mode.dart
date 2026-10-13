@@ -21,3 +21,4 @@ extension AudioOutputModeLabel on AudioOutputMode {
 
   bool get isWifi => this == AudioOutputMode.wifiSpeaker;
 }
+

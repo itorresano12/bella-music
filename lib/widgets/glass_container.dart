@@ -102,3 +102,4 @@ class GradientCard extends StatelessWidget {
     );
   }
 }
+
