@@ -27,6 +27,13 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Prepare Android Gradle Wrapper
+        run: |
+          cd android
+          gradle wrapper --gradle-version 8.5
+          chmod +x gradlew
+          cd ..
+
       - name: Get Dependencies
         run: flutter pub get
 
