@@ -66,13 +66,10 @@ android {
         }
 
         release {
-            // ── SECURITY HARDENING: R8 + ProGuard obfuscation ──────────────
-            minifyEnabled true        // Enables R8 code minification & obfuscation
-            shrinkResources true      // Removes unused resources from the APK
+            signingConfig = signingConfigs.debug
+            minifyEnabled false
+            shrinkResources false
             debuggable false
-            // signingConfig signingConfigs.release
-
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 

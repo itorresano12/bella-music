@@ -50,11 +50,15 @@ class _NowPlayingBarState extends ConsumerState<NowPlayingBar>
     final track = audioState.currentTrack;
     if (track == null) return const SizedBox.shrink();
 
-    // Pause rotation when not playing
+    // Constant-speed infinite spin only when playing
     if (audioState.isPlaying) {
-      _rotationCtrl.forward();
+      if (!_rotationCtrl.isAnimating) {
+        _rotationCtrl.repeat();
+      }
     } else {
-      _rotationCtrl.stop();
+      if (_rotationCtrl.isAnimating) {
+        _rotationCtrl.stop();
+      }
     }
 
     return ClipRRect(
@@ -79,7 +83,7 @@ class _NowPlayingBarState extends ConsumerState<NowPlayingBar>
                 children: [
                   Row(
                     children: [
-                      // ── Rotating album art ──────────────────────────────
+                      // ── Rotating vinyl disc with album art ───────────────
                       AnimatedBuilder(
                         animation: _rotationCtrl,
                         builder: (_, child) => Transform.rotate(
@@ -87,31 +91,66 @@ class _NowPlayingBarState extends ConsumerState<NowPlayingBar>
                           child: child,
                         ),
                         child: Container(
-                          width: 52,
-                          height: 52,
+                          width: 56,
+                          height: 56,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
+                            color: const Color(0xFF101010),
                             border: Border.all(
-                              color: AppTheme.accentViolet.withOpacity(0.6),
-                              width: 2,
+                              color: const Color(0xFF262626),
+                              width: 3,
                             ),
                             boxShadow: [
                               BoxShadow(
                                 color: AppTheme.accentViolet.withOpacity(0.4),
-                                blurRadius: 12,
+                                blurRadius: 14,
+                                spreadRadius: 1,
                               ),
                             ],
                           ),
-                          child: ClipOval(
-                            child: CachedNetworkImage(
-                              imageUrl: track.albumArt,
-                              fit: BoxFit.cover,
-                              errorWidget: (_, __, ___) => Container(
-                                color: AppTheme.surface,
-                                child: const Icon(Icons.music_note,
-                                    color: AppTheme.accentViolet),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              // Concentric vinyl grooves ring
+                              Container(
+                                width: 50,
+                                height: 50,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.06),
+                                    width: 1,
+                                  ),
+                                ),
                               ),
-                            ),
+                              // Album art circular label
+                              ClipOval(
+                                child: CachedNetworkImage(
+                                  imageUrl: track.albumArt,
+                                  width: 36,
+                                  height: 36,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (_, __, ___) => Container(
+                                    color: AppTheme.surface,
+                                    child: const Icon(Icons.music_note,
+                                        size: 20, color: AppTheme.accentViolet),
+                                  ),
+                                ),
+                              ),
+                              // Spindle center hole
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: const Color(0xFF0D0D0D),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.4),
+                                    width: 0.8,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),

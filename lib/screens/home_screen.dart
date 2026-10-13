@@ -300,7 +300,9 @@ class _ConnectionCard extends StatelessWidget {
                   mode == AudioOutputMode.searching
                       ? 'Escaneando la red local…'
                       : isWifi
-                          ? discovery.speakerIp ?? 'Forestream detectado'
+                          ? (discovery.speakerFriendlyName != null
+                              ? '${discovery.speakerFriendlyName} (${discovery.speakerIp})'
+                              : 'Power Dynamics WCS50 detectado')
                           : 'Audio por altavoces del móvil',
                   style: const TextStyle(
                     color: AppTheme.onSurfaceSub,

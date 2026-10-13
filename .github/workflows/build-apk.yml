@@ -27,9 +27,6 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Repair and Scaffold Native Platforms
-        run: flutter create --platforms=android,web --org=com.bellamusic .
-
       - name: Get Dependencies
         run: flutter pub get
 
@@ -42,4 +39,3 @@ jobs:
           name: BellaMusic-Release-APK
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
-

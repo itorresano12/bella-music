@@ -44,8 +44,8 @@ class DiscoveryNotifier extends StateNotifier<DiscoveryState> {
 
   final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 
-  // Target device identifier — change to match your device's USN/friendly name
-  static const String _targetDeviceId = 'smart-audio_4ADA';
+  // Default friendly name for discovered speaker
+  static const String _defaultFriendlyName = 'Power Dynamics WCS50';
 
   // SSDP multicast constants
   static const String _ssdpMulticastAddr = '239.255.255.250';
@@ -64,18 +64,18 @@ ST: urn:schemas-upnp-org:device:MediaRenderer:1\r
 
   Future<void> startDiscovery() async {
     state = const DiscoveryState(mode: AudioOutputMode.searching);
-    _logger.i('SSDP: Starting discovery for $_targetDeviceId…');
+    _logger.i('SSDP: Escaneando red local para altavoces Power Dynamics WCS50 / MediaRenderer…');
 
     // Check if we have a cached IP to try first
     final cached = await SecureStorageService.instance.getLastSpeakerIp();
     if (cached != null && NetworkValidator.isPrivateIp(cached)) {
       final alive = await _pingDevice(cached);
       if (alive) {
-        _logger.i('SSDP: Cached speaker at $cached is alive.');
+        _logger.i('SSDP: Altavoz recordado activo en $cached.');
         state = state.copyWith(
           mode: AudioOutputMode.wifiSpeaker,
           speakerIp: cached,
-          speakerFriendlyName: _targetDeviceId,
+          speakerFriendlyName: _defaultFriendlyName,
         );
         return;
       }
@@ -94,19 +94,20 @@ ST: urn:schemas-upnp-org:device:MediaRenderer:1\r
       state = state.copyWith(
         mode: AudioOutputMode.wifiSpeaker,
         speakerIp: found,
-        speakerFriendlyName: _targetDeviceId,
+        speakerFriendlyName: _defaultFriendlyName,
       );
-      _logger.i('SSDP: Speaker found at $found → Routing to Wi-Fi speaker.');
+      _logger.i('SSDP: Altavoz Power Dynamics WCS50 localizado en $found → Modo Wi-Fi activado.');
     } else {
       _fallbackToLocal();
     }
   }
 
   void _fallbackToLocal() {
-    _logger.i('SSDP: No speaker found → Falling back to local audio.');
+    _logger.i('SSDP: No se detectó altavoz en la red → Fallback a altavoces del dispositivo.');
     state = state.copyWith(
       mode: AudioOutputMode.localFallback,
       speakerIp: null,
+      speakerFriendlyName: 'Altavoz local',
     );
   }
 
@@ -131,12 +132,17 @@ ST: urn:schemas-upnp-org:device:MediaRenderer:1\r
           final datagram = socket.receive();
           if (datagram != null) {
             final response = String.fromCharCodes(datagram.data);
-            // Look for our target device by name in the SSDP response
-            if (response.toLowerCase().contains(_targetDeviceId.toLowerCase()) ||
-                response.contains('MediaRenderer') ||
-                response.contains('Linkplay')) {
+            final respLower = response.toLowerCase();
+            
+            // Universal MediaRenderer signature or Power Dynamics / Linkplay / MUZO signatures
+            if (response.contains('urn:schemas-upnp-org:device:MediaRenderer:1') ||
+                respLower.contains('mediarenderer') ||
+                respLower.contains('linkplay') ||
+                respLower.contains('muzo') ||
+                respLower.contains('wcs50') ||
+                respLower.contains('power dynamics')) {
               final ip = datagram.address.address;
-              _logger.i('SSDP: Response from $ip — checking for target device.');
+              _logger.i('SSDP: Altavoz detectado en $ip');
               if (!completer.isCompleted) {
                 completer.complete(ip);
               }
