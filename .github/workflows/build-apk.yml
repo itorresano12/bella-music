@@ -37,7 +37,7 @@ jobs:
       - name: Build APK
         run: |
           cd android && chmod +x gradlew && cd ..
-          flutter build apk --release
+          flutter build apk --release --android-skip-build-dependency-validation
 
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
