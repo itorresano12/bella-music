@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bella Music — Dark Mode Streaming</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0D0D0D;
+      --surface: #1A1A1A;
+      --surface-light: #242424;
+      --text: #F0F0F0;
+      --text-sub: #8A8A8A;
+      --accent-violet: #8B5CF6;
+      --accent-blue: #06B6D4;
+      --accent-pink: #EC4899;
+      --gradient: linear-gradient(135deg, #8B5CF6, #06B6D4);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Montserrat', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      background: linear-gradient(180deg, #0D0D0D 0%, #111827 100%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    /* Device frame wrapper */
+    .app-viewport {
+      width: 100%;
+      max-width: 440px;
+      height: 920px;
+      max-height: 94vh;
+      background: #0D0D0D;
+      border-radius: 40px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 0 8px #222, 0 0 40px rgba(139, 92, 246, 0.2);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* Glass AppBar */
+    .glass-appbar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 70px;
+      background: rgba(13, 13, 13, 0.75);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      z-index: 10;
+    }
+
+    .logo {
+      font-size: 22px;
+      font-weight: 800;
+      background: var(--gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+
+    .appbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .icon-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text);
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .icon-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+      transform: scale(1.05);
+    }
+
+    .avatar {
+      background: linear-gradient(135deg, var(--accent-pink), var(--accent-violet));
+      color: white;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    /* Scrollable Content */
+    .scroll-content {
+      flex: 1;
+      overflow-y: auto;
+      padding-top: 86px;
+      padding-bottom: 160px;
+      scrollbar-width: none;
+    }
+
+    .scroll-content::-webkit-scrollbar {
+      display: none;
+    }
+
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin: 0 20px 14px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .section-title a {
+      font-size: 13px;
+      color: var(--accent-violet);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    /* Playlists Carousel */
+    .carousel-container {
+      display: flex;
+      gap: 14px;
+      overflow-x: auto;
+      padding: 0 20px 10px 20px;
+      scrollbar-width: none;
+    }
+
+    .carousel-container::-webkit-scrollbar {
+      display: none;
+    }
+
+    .playlist-card {
+      min-width: 150px;
+      height: 200px;
+      border-radius: 24px;
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.25s, box-shadow 0.25s;
+      flex-shrink: 0;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .playlist-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 14px 30px rgba(139, 92, 246, 0.35);
+    }
+
+    .playlist-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .playlist-card .card-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,0.9) 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 14px;
+    }
+
+    .playlist-title {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 6px;
+      width: fit-content;
+      margin-top: 4px;
+    }
+
+    .badge-deezer {
+      background: rgba(239, 68, 68, 0.25);
+      color: #EF4444;
+      border: 1px solid rgba(239, 68, 68, 0.5);
+    }
+
+    .badge-amazon {
+      background: rgba(249, 115, 22, 0.25);
+      color: #F97316;
+      border: 1px solid rgba(249, 115, 22, 0.5);
+    }
+
+    /* Services Grid */
+    .services-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      padding: 0 20px;
+      margin-bottom: 24px;
+    }
+
+    .service-card {
+      background: linear-gradient(135deg, #1A1A2E, #16213E);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      border-radius: 20px;
+      padding: 16px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 8px 20px rgba(139, 92, 246, 0.12);
+      transition: all 0.2s;
+    }
+
+    .service-card:hover {
+      border-color: var(--accent-violet);
+      transform: translateY(-2px);
+    }
+
+    .service-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .service-icon {
+      font-size: 24px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22C55E;
+      box-shadow: 0 0 10px #22C55E;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
+    }
+
+    .service-name {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .service-status {
+      font-size: 11px;
+      color: #22C55E;
+      font-weight: 500;
+    }
+
+    /* Connection Banner */
+    .connection-banner {
+      margin: 0 20px 24px 20px;
+      background: linear-gradient(135deg, #0D2137, #0A1628);
+      border: 1px solid rgba(6, 182, 212, 0.4);
+      border-radius: 20px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .connection-banner:hover {
+      background: linear-gradient(135deg, #102A45, #0D1C34);
+    }
+
+    .connection-icon-wrap {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(6, 182, 212, 0.2);
+      color: var(--accent-blue);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .connection-info h4 {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .connection-info p {
+      font-size: 11px;
+      color: var(--text-sub);
+      margin-top: 2px;
+    }
+
+    /* Track List */
+    .track-list {
+      padding: 0 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .track-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .track-item:hover, .track-item.active {
+      background: rgba(139, 92, 246, 0.15);
+      border-color: rgba(139, 92, 246, 0.4);
+    }
+
+    .track-cover {
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      object-fit: cover;
+    }
+
+    .track-meta {
+      flex: 1;
+    }
+
+    .track-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .track-artist {
+      font-size: 11px;
+      color: var(--text-sub);
+      margin-top: 3px;
+    }
+
+    .track-duration {
+      font-size: 12px;
+      color: var(--text-sub);
+      font-weight: 500;
+    }
+
+    /* Floating Now Playing Bar */
+    .now-playing-panel {
+      position: absolute;
+      bottom: 64px;
+      left: 12px;
+      right: 12px;
+      background: rgba(26, 26, 26, 0.88);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      border-radius: 24px;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.7), 0 0 20px rgba(139, 92, 246, 0.25);
+      z-index: 20;
+    }
+
+    .now-playing-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* Rotating Vinyl Album Art */
+    .vinyl-art {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 2px solid var(--accent-violet);
+      box-shadow: 0 0 12px rgba(139, 92, 246, 0.6);
+      animation: rotate 10s linear infinite;
+      animation-play-state: running;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+
+    .vinyl-art.paused {
+      animation-play-state: paused;
+    }
+
+    @keyframes rotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .now-playing-info {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .now-playing-title {
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .now-playing-artist {
+      font-size: 11px;
+      color: var(--text-sub);
+      margin-top: 2px;
+    }
+
+    .output-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--accent-blue);
+      font-weight: 700;
+      margin-top: 3px;
+    }
+
+    .controls-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .play-pause-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--gradient);
+      border: none;
+      color: white;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(139, 92, 246, 0.5);
+      transition: transform 0.15s;
+    }
+
+    .play-pause-btn:hover {
+      transform: scale(1.08);
+    }
+
+    .ctrl-btn {
+      background: none;
+      border: none;
+      color: var(--text);
+      font-size: 16px;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 50%;
+    }
+
+    .ctrl-btn:hover {
+      color: var(--accent-violet);
+    }
+
+    /* Progress bar */
+    .progress-bar-wrap {
+      width: 100%;
+      height: 4px;
+      background: var(--surface-light);
+      border-radius: 2px;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 35%;
+      background: var(--gradient);
+      border-radius: 2px;
+      transition: width 0.2s linear;
+    }
+
+    /* Bottom Navigation Bar */
+    .glass-bottomnav {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 64px;
+      background: rgba(13, 13, 13, 0.88);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      z-index: 10;
+    }
+
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      color: var(--text-sub);
+      font-size: 10px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    .nav-item.active {
+      color: var(--accent-violet);
+      font-weight: 700;
+    }
+
+    .nav-icon {
+      font-size: 18px;
+    }
+
+    /* Mode Modal Toast */
+    .toast {
+      position: absolute;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(26, 26, 26, 0.95);
+      border: 1px solid var(--accent-blue);
+      border-radius: 20px;
+      padding: 8px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text);
+      z-index: 50;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+
+    .toast.show {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-viewport">
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">🔊 Modo Altavoz Wi-Fi activo</div>
+
+    <!-- Glass Top App Bar -->
+    <header class="glass-appbar">
+      <div class="logo">Bella Music</div>
+      <div class="appbar-actions">
+        <button class="icon-btn" onclick="toggleSearch()" title="Buscar">🔍</button>
+        <button class="icon-btn avatar" title="Perfil">IT</button>
+      </div>
+    </header>
+
+    <!-- Main Scrollable Area -->
+    <main class="scroll-content">
+
+      <!-- Playlists Carousel -->
+      <div class="section-title">
+        <span>Tus Playlists</span>
+        <a href="#all">Ver todo</a>
+      </div>
+
+      <div class="carousel-container">
+        <!-- Playlist 1 -->
+        <div class="playlist-card" onclick="playPlaylist('Tasty Santander', 'Deezer')">
+          <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&q=80" alt="Tasty Santander">
+          <div class="card-overlay">
+            <div class="playlist-title">Tasty Santander</div>
+            <span class="badge badge-deezer">Deezer · 32 tracks</span>
+          </div>
+        </div>
+        <!-- Playlist 2 -->
+        <div class="playlist-card" onclick="playPlaylist('Late Night Vibes', 'Amazon')">
+          <img src="https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=400&q=80" alt="Late Night">
+          <div class="card-overlay">
+            <div class="playlist-title">Late Night Vibes</div>
+            <span class="badge badge-amazon">Amazon · 18 tracks</span>
+          </div>
+        </div>
+        <!-- Playlist 3 -->
+        <div class="playlist-card" onclick="playPlaylist('Deep Focus', 'Deezer')">
+          <img src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&q=80" alt="Deep Focus">
+          <div class="card-overlay">
+            <div class="playlist-title">Deep Focus</div>
+            <span class="badge badge-deezer">Deezer · 45 tracks</span>
+          </div>
+        </div>
+        <!-- Playlist 4 -->
+        <div class="playlist-card" onclick="playPlaylist('Electric Summer', 'Amazon')">
+          <img src="https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=400&q=80" alt="Electric Summer">
+          <div class="card-overlay">
+            <div class="playlist-title">Electric Summer</div>
+            <span class="badge badge-amazon">Amazon · 27 tracks</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Services Grid -->
+      <div class="section-title" style="margin-top: 24px;">
+        <span>Servicios Conectados</span>
+      </div>
+
+      <div class="services-grid">
+        <div class="service-card" onclick="showToast('Conexión Deezer Hi-Fi verificada con éxito')">
+          <div class="service-header">
+            <span class="service-icon">🎵</span>
+            <div class="status-dot"></div>
+          </div>
+          <div>
+            <div class="service-name">Deezer</div>
+            <div class="service-status">Conectado (TLS)</div>
+          </div>
+        </div>
+        <div class="service-card" onclick="showToast('Conexión Amazon Music Unlimited activa')">
+          <div class="service-header">
+            <span class="service-icon">🎶</span>
+            <div class="status-dot"></div>
+          </div>
+          <div>
+            <div class="service-name">Amazon Music</div>
+            <div class="service-status">Conectado (TLS)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Audio Output / Fallback Card -->
+      <div class="connection-banner" id="outputBanner" onclick="toggleOutputMode()">
+        <div class="connection-icon-wrap" id="outputIcon">🔊</div>
+        <div class="connection-info">
+          <h4 id="outputTitle">Altavoz Wi-Fi activo</h4>
+          <p id="outputSubtitle">smart-audio_4ADA (Forestream UPnP)</p>
+        </div>
+      </div>
+
+      <!-- Recent Tracks -->
+      <div class="section-title">
+        <span>Reproducción Reciente</span>
+      </div>
+
+      <div class="track-list" id="trackList">
+        <!-- Rendered dynamically via JS -->
+      </div>
+
+    </main>
+
+    <!-- Floating Now Playing Bar -->
+    <div class="now-playing-panel">
+      <div class="now-playing-row">
+        <img id="playerVinyl" class="vinyl-art" src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200&q=80" alt="Cover">
+        <div class="now-playing-info">
+          <div class="now-playing-title" id="playerTitle">Neon Dreams</div>
+          <div class="now-playing-artist" id="playerArtist">Synthwave Collective</div>
+          <div class="output-indicator" id="playerOutputBadge">🔊 Altavoz Wi-Fi</div>
+        </div>
+        <div class="controls-group">
+          <button class="ctrl-btn" onclick="prevTrack()" title="Anterior">⏮</button>
+          <button class="play-pause-btn" id="playPauseBtn" onclick="togglePlay()" title="Reproducir/Pausar">⏸</button>
+          <button class="ctrl-btn" onclick="nextTrack()" title="Siguiente">⏭</button>
+        </div>
+      </div>
+      <div class="progress-bar-wrap" onclick="seekTrack(event)">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <!-- Glass Bottom Navigation Bar -->
+    <nav class="glass-bottomnav">
+      <div class="nav-item active" onclick="setNav(this)">
+        <span class="nav-icon">🏠</span>
+        <span>Inicio</span>
+      </div>
+      <div class="nav-item" onclick="setNav(this)">
+        <span class="nav-icon">🔍</span>
+        <span>Buscar</span>
+      </div>
+      <div class="nav-item" onclick="setNav(this)">
+        <span class="nav-icon">📚</span>
+        <span>Librería</span>
+      </div>
+      <div class="nav-item" onclick="setNav(this)">
+        <span class="nav-icon">⚙️</span>
+        <span>Ajustes</span>
+      </div>
+    </nav>
+
+  </div>
+
+  <!-- HTML5 Audio Engine for Real Local Playback -->
+  <audio id="audioEngine" preload="auto"></audio>
+
+  <script>
+    const tracks = [
+      {
+        id: 1,
+        title: "Neon Dreams",
+        artist: "Synthwave Collective",
+        duration: "3:34",
+        cover: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&q=80",
+        audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
+      },
+      {
+        id: 2,
+        title: "Midnight City (Bella Mix)",
+        artist: "Echo Waves",
+        duration: "3:03",
+        cover: "https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=300&q=80",
+        audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3"
+      },
+      {
+        id: 3,
+        title: "Purple Horizon",
+        artist: "Violet Pulse",
+        duration: "4:27",
+        cover: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&q=80",
+        audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3"
+      },
+      {
+        id: 4,
+        title: "Tasty Santander Summer",
+        artist: "Deep Session",
+        duration: "2:50",
+        cover: "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&q=80",
+        audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3"
+      }
+    ];
+
+    let currentTrackIndex = 0;
+    let isPlaying = false;
+    let isWifiMode = true; // Wi-Fi speaker vs local phone mode
+
+    const audio = document.getElementById("audioEngine");
+    const playPauseBtn = document.getElementById("playPauseBtn");
+    const vinyl = document.getElementById("playerVinyl");
+    const progressFill = document.getElementById("progressFill");
+    const playerTitle = document.getElementById("playerTitle");
+    const playerArtist = document.getElementById("playerArtist");
+    const playerOutputBadge = document.getElementById("playerOutputBadge");
+    const outputIcon = document.getElementById("outputIcon");
+    const outputTitle = document.getElementById("outputTitle");
+    const outputSubtitle = document.getElementById("outputSubtitle");
+
+    // Initialize track list
+    function renderTrackList() {
+      const container = document.getElementById("trackList");
+      container.innerHTML = tracks.map((t, idx) => `
+        <div class="track-item ${idx === currentTrackIndex ? 'active' : ''}" onclick="selectTrack(${idx})">
+          <img class="track-cover" src="${t.cover}" alt="${t.title}">
+          <div class="track-meta">
+            <div class="track-title">${t.title}</div>
+            <div class="track-artist">${t.artist}</div>
+          </div>
+          <div class="track-duration">${t.duration}</div>
+        </div>
+      `).join('');
+    }
+
+    function loadTrack(idx) {
+      currentTrackIndex = idx;
+      const t = tracks[idx];
+      playerTitle.textContent = t.title;
+      playerArtist.textContent = t.artist;
+      vinyl.src = t.cover;
+      audio.src = t.audioUrl;
+      renderTrackList();
+    }
+
+    function togglePlay() {
+      if (isPlaying) {
+        audio.pause();
+        vinyl.classList.add("paused");
+        playPauseBtn.textContent = "▶";
+        isPlaying = false;
+      } else {
+        audio.play().catch(() => {});
+        vinyl.classList.remove("paused");
+        playPauseBtn.textContent = "⏸";
+        isPlaying = true;
+      }
+    }
+
+    function selectTrack(idx) {
+      loadTrack(idx);
+      audio.play().catch(() => {});
+      isPlaying = true;
+      vinyl.classList.remove("paused");
+      playPauseBtn.textContent = "⏸";
+    }
+
+    function nextTrack() {
+      currentTrackIndex = (currentTrackIndex + 1) % tracks.length;
+      selectTrack(currentTrackIndex);
+    }
+
+    function prevTrack() {
+      currentTrackIndex = (currentTrackIndex - 1 + tracks.length) % tracks.length;
+      selectTrack(currentTrackIndex);
+    }
+
+    function playPlaylist(name, service) {
+      showToast(`Reproduciendo playlist "${name}" vía ${service}`);
+      selectTrack(0);
+    }
+
+    // Toggle between Wi-Fi speaker (UPnP) and local phone playback fallback
+    function toggleOutputMode() {
+      isWifiMode = !isWifiMode;
+      if (isWifiMode) {
+        outputIcon.textContent = "🔊";
+        outputTitle.textContent = "Altavoz Wi-Fi activo";
+        outputSubtitle.textContent = "smart-audio_4ADA (Forestream UPnP)";
+        playerOutputBadge.textContent = "🔊 Altavoz Wi-Fi";
+        showToast("Conmutado: Enrutando audio por Altavoz Wi-Fi (DLNA)");
+      } else {
+        outputIcon.textContent = "📱";
+        outputTitle.textContent = "Modo de Prueba activado";
+        outputSubtitle.textContent = "Audio por altavoces físicos del dispositivo";
+        playerOutputBadge.textContent = "📱 Modo de Prueba (Móvil)";
+        showToast("Conmutado: Modo de Prueba (Altavoz local activo)");
+      }
+    }
+
+    // Progress update
+    audio.addEventListener("timeupdate", () => {
+      if (audio.duration) {
+        const pct = (audio.currentTime / audio.duration) * 100;
+        progressFill.style.width = pct + "%";
+      }
+    });
+
+    audio.addEventListener("ended", () => {
+      nextTrack();
+    });
+
+    function seekTrack(e) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const pct = clickX / rect.width;
+      if (audio.duration) {
+        audio.currentTime = pct * audio.duration;
+      }
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById("toast");
+      toast.textContent = msg;
+      toast.classList.add("show");
+      setTimeout(() => toast.classList.remove("show"), 2500);
+    }
+
+    function setNav(el) {
+      document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+      el.classList.add("active");
+    }
+
+    function toggleSearch() {
+      showToast("Buscador global: Deezer & Amazon Music integrado");
+    }
+
+    // Start
+    loadTrack(0);
+  </script>
+</body>
+</html>

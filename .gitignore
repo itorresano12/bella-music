@@ -6,6 +6,7 @@
 .DS_Store
 .gradle/
 *.gradle.cache
+server.js
 .atom/
 .buildlog/
 .history

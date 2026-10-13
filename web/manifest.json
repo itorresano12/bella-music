@@ -1,0 +1,11 @@
+{
+    "name": "Bella Music",
+    "short_name": "Bella Music",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#0D0D0D",
+    "theme_color": "#0D0D0D",
+    "description": "Bella Music — Premium streaming controller with DLNA/Linkplay support and local audio fallback.",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false
+}
