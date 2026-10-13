@@ -13,6 +13,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:bella_music/services/audio_service.dart';
 import 'package:bella_music/services/discovery_service.dart';
 import 'package:bella_music/models/audio_output_mode.dart';
+import 'package:bella_music/providers/playlist_provider.dart';
 import 'package:bella_music/theme/app_theme.dart';
 
 class NowPlayingBar extends ConsumerStatefulWidget {
