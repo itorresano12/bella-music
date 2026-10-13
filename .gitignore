@@ -4,6 +4,8 @@
 *.pyc
 *.swp
 .DS_Store
+.gradle/
+*.gradle.cache
 .atom/
 .buildlog/
 .history
