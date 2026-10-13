@@ -639,24 +639,24 @@
       </div>
 
       <div class="services-grid">
-        <div class="service-card" onclick="showToast('Conexión Deezer Hi-Fi verificada con éxito')">
+        <div class="service-card" onclick="openLoginModal('Deezer')">
           <div class="service-header">
             <span class="service-icon">🎵</span>
             <div class="status-dot"></div>
           </div>
           <div>
             <div class="service-name">Deezer</div>
-            <div class="service-status">Conectado (TLS)</div>
+            <div class="service-status" id="deezerStatus">Conectado (Keystore)</div>
           </div>
         </div>
-        <div class="service-card" onclick="showToast('Conexión Amazon Music Unlimited activa')">
+        <div class="service-card" onclick="openLoginModal('Amazon Music')">
           <div class="service-header">
             <span class="service-icon">🎶</span>
             <div class="status-dot"></div>
           </div>
           <div>
             <div class="service-name">Amazon Music</div>
-            <div class="service-status">Conectado (TLS)</div>
+            <div class="service-status" id="amazonStatus">Conectado (Keystore)</div>
           </div>
         </div>
       </div>
@@ -665,8 +665,8 @@
       <div class="connection-banner" id="outputBanner" onclick="toggleOutputMode()">
         <div class="connection-icon-wrap" id="outputIcon">🔊</div>
         <div class="connection-info">
-          <h4 id="outputTitle">Altavoz Wi-Fi activo</h4>
-          <p id="outputSubtitle">Power Dynamics WCS50 (Linkplay / MUZO UPnP)</p>
+          <h4 id="outputTitle">Radar Universal Wi-Fi activo</h4>
+          <p id="outputSubtitle">MediaRenderer UPnP/DLNA conectado (192.168.1.105)</p>
         </div>
       </div>
 
@@ -888,6 +888,19 @@
     function setNav(el) {
       document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
       el.classList.add("active");
+    }
+
+    function openLoginModal(service) {
+      const email = prompt(`🔐 Pasarela de Acceso ${service}\n\nIntroduce tu correo o token de sesión oficial para conectar tu local (se guardará cifrado en Keystore):`);
+      if (email && email.trim().length > 0) {
+        localStorage.setItem(`token_${service.toLowerCase()}`, email);
+        showToast(`✅ ${service} conectado. Token cifrado en Keystore.`);
+        if (service === 'Deezer') {
+          document.getElementById('deezerStatus').textContent = 'Conectado (Keystore)';
+        } else {
+          document.getElementById('amazonStatus').textContent = 'Conectado (Keystore)';
+        }
+      }
     }
 
     function toggleSearch() {

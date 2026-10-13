@@ -44,14 +44,12 @@ class DiscoveryNotifier extends StateNotifier<DiscoveryState> {
 
   final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 
-  // Default friendly name for discovered speaker
-  static const String _defaultFriendlyName = 'Power Dynamics WCS50';
-
   // SSDP multicast constants
   static const String _ssdpMulticastAddr = '239.255.255.250';
   static const int    _ssdpPort          = 1900;
-  static const int    _discoveryTimeout  = 5; // seconds
+  static const int    _discoveryTimeout  = 6; // seconds
 
+  // Universal UPnP M-SEARCH searching for ANY audio MediaRenderer on LAN
   static const String _ssdpMSearch = '''M-SEARCH * HTTP/1.1\r
 HOST: 239.255.255.250:1900\r
 MAN: "ssdp:discover"\r
@@ -64,57 +62,59 @@ ST: urn:schemas-upnp-org:device:MediaRenderer:1\r
 
   Future<void> startDiscovery() async {
     state = const DiscoveryState(mode: AudioOutputMode.searching);
-    _logger.i('SSDP: Escaneando red local para altavoces Power Dynamics WCS50 / MediaRenderer…');
+    _logger.i('SSDP: Radar universal activo — buscando cualquier reproductor de audio en red Wi-Fi…');
 
-    // Check if we have a cached IP to try first
+    // 1. Probar primero si hay un altavoz previamente recordado en la subred
     final cached = await SecureStorageService.instance.getLastSpeakerIp();
     if (cached != null && NetworkValidator.isPrivateIp(cached)) {
       final alive = await _pingDevice(cached);
       if (alive) {
-        _logger.i('SSDP: Altavoz recordado activo en $cached.');
+        _logger.i('SSDP: Dispositivo de audio recordado activo en $cached.');
         state = state.copyWith(
           mode: AudioOutputMode.wifiSpeaker,
           speakerIp: cached,
-          speakerFriendlyName: _defaultFriendlyName,
+          speakerFriendlyName: 'Altavoz Wi-Fi ($cached)',
         );
         return;
       }
     }
 
-    // Full SSDP scan in background
-    final found = await _runSsdpScan();
+    // 2. Escaneo abierto universal en la red Wi-Fi
+    final found = await _runUniversalSsdpScan();
     if (found != null) {
-      // SECURITY: validate IP before storing or using
+      // Mitigación SSRF: validar que la IP pertenezca a la subred privada local
       if (!NetworkValidator.isPrivateIp(found)) {
-        _logger.w('SSDP: Discovered IP $found is NOT in a private range — rejected.');
+        _logger.w('SSDP: La IP detectada $found no es privada — ignorada por seguridad.');
         _fallbackToLocal();
         return;
       }
+
       await SecureStorageService.instance.saveLastSpeakerIp(found);
+      final friendlyName = 'Altavoz Wi-Fi ($found)';
       state = state.copyWith(
         mode: AudioOutputMode.wifiSpeaker,
         speakerIp: found,
-        speakerFriendlyName: _defaultFriendlyName,
+        speakerFriendlyName: friendlyName,
       );
-      _logger.i('SSDP: Altavoz Power Dynamics WCS50 localizado en $found → Modo Wi-Fi activado.');
+      _logger.i('SSDP: ¡Reproductor de audio enlazado con éxito en $found! Modo Wi-Fi activo.');
     } else {
       _fallbackToLocal();
     }
   }
 
   void _fallbackToLocal() {
-    _logger.i('SSDP: No se detectó altavoz en la red → Fallback a altavoces del dispositivo.');
+    _logger.i('SSDP: Sin altavoces Wi-Fi detectados → Conmutando a reproducción local en el teléfono.');
     state = state.copyWith(
       mode: AudioOutputMode.localFallback,
       speakerIp: null,
-      speakerFriendlyName: 'Altavoz local',
+      speakerFriendlyName: 'Altavoz del Teléfono',
     );
   }
 
   // ─── Private helpers ────────────────────────────────────────────────────────
 
-  /// Sends M-SEARCH over UDP multicast and waits up to [_discoveryTimeout]s
-  Future<String?> _runSsdpScan() async {
+  /// Escucha el socket multicast y enlaza con el PRIMER MediaRenderer que responda
+  Future<String?> _runUniversalSsdpScan() async {
     try {
       final socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
       socket.multicastHops = 4;
@@ -132,17 +132,19 @@ ST: urn:schemas-upnp-org:device:MediaRenderer:1\r
           final datagram = socket.receive();
           if (datagram != null) {
             final response = String.fromCharCodes(datagram.data);
-            final respLower = response.toLowerCase();
+            final respUpper = response.toUpperCase();
             
-            // Universal MediaRenderer signature or Power Dynamics / Linkplay / MUZO signatures
-            if (response.contains('urn:schemas-upnp-org:device:MediaRenderer:1') ||
-                respLower.contains('mediarenderer') ||
-                respLower.contains('linkplay') ||
-                respLower.contains('muzo') ||
-                respLower.contains('wcs50') ||
-                respLower.contains('power dynamics')) {
+            // FILTRO UNIVERSAL: Acepta cualquier dispositivo multimedia UPnP/DLNA
+            // que responda con la firma estándar de MediaRenderer o AVTransport
+            final isMediaRenderer = respUpper.contains('MEDIARENDERER') ||
+                respUpper.contains('AVTRANSPORT') ||
+                respUpper.contains('RENDERINGCONTROL') ||
+                respUpper.contains('LINKPLAY') ||
+                respUpper.contains('UPNP:ROOTDEVICE');
+
+            if (isMediaRenderer) {
               final ip = datagram.address.address;
-              _logger.i('SSDP: Altavoz detectado en $ip');
+              _logger.i('SSDP Radar: Detectado reproductor universal en $ip');
               if (!completer.isCompleted) {
                 completer.complete(ip);
               }
@@ -156,7 +158,7 @@ ST: urn:schemas-upnp-org:device:MediaRenderer:1\r
       socket.close();
       return result;
     } catch (e) {
-      _logger.e('SSDP scan error: $e');
+      _logger.e('SSDP radar error: $e');
       return null;
     }
   }

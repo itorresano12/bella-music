@@ -302,7 +302,7 @@ class _ConnectionCard extends StatelessWidget {
                       : isWifi
                           ? (discovery.speakerFriendlyName != null
                               ? '${discovery.speakerFriendlyName} (${discovery.speakerIp})'
-                              : 'Power Dynamics WCS50 detectado')
+                              : 'Altavoz Wi-Fi detectado')
                           : 'Audio por altavoces del móvil',
                   style: const TextStyle(
                     color: AppTheme.onSurfaceSub,
