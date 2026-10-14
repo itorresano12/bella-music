@@ -5,6 +5,7 @@
 //   • Full Shuffle & Repeat control modes
 //   • Play/Pause/Skip with real-time UI synchronisation and auto-advance
 
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
@@ -73,11 +74,25 @@ class AudioNotifier extends StateNotifier<AudioState> {
   final Ref _ref;
   final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
   final AudioPlayer _localPlayer = AudioPlayer();
+  Timer? _remotePollingTimer;
 
   Future<void> _initLocalPlayer() async {
     try {
       final session = await AudioSession.instance;
-      await session.configure(const AudioSessionConfiguration.music());
+      await session.configure(const AudioSessionConfiguration(
+        avAudioSessionCategory: AVAudioSessionCategory.playback,
+        avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.none,
+        avAudioSessionMode: AVAudioSessionMode.defaultMode,
+        avAudioSessionRouteSharingPolicy: AVAudioSessionRouteSharingPolicy.defaultPolicy,
+        avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
+        androidAudioAttributes: AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.music,
+          flags: AndroidAudioFlags.none,
+          usage: AndroidAudioUsage.media,
+        ),
+        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+        androidWillPauseWhenDucked: true,
+      ));
 
       _localPlayer.positionStream.listen((pos) {
         state = state.copyWith(positionSeconds: pos.inSeconds);
@@ -91,7 +106,7 @@ class AudioNotifier extends StateNotifier<AudioState> {
         state = state.copyWith(isPlaying: playing);
       });
 
-      // Auto-advance to next song upon completion
+      // Ciclo de vida y auto-avance local/Bluetooth
       _localPlayer.playerStateStream.listen((playerState) {
         if (playerState.processingState == ProcessingState.completed) {
           if (state.repeatMode == AudioRepeatMode.one) {
@@ -132,24 +147,65 @@ class AudioNotifier extends StateNotifier<AudioState> {
     if (discovery.mode == AudioOutputMode.wifiSpeaker &&
         discovery.speakerIp != null &&
         NetworkValidator.isPrivateIp(discovery.speakerIp!)) {
-      _logger.i('Audio: Transmitiendo en alta fidelidad a altavoz Wi-Fi UPnP ${discovery.speakerIp}');
+      _logger.i('Audio Wi-Fi: Despachando a altavoz Power Dynamics WCS50 (${discovery.speakerIp}) en modo Controller');
+
+      // MÓVIL COMO MANDO A DISTANCIA EXCLUSIVO:
+      // Se detiene el reproductor local del teléfono para que llamadas, notas de voz o vídeos
+      // no interfieran con el altavoz ni pausen la transmisión de red del WCS50.
       await _localPlayer.stop();
-      final ok = await UpnpService.instance.setAvTransportUri(
+
+      final ok = await UpnpService.instance.playOnLinkplayOrUpnp(
         speakerIp: discovery.speakerIp!,
-        port: 49152,
         streamUrl: track.streamUrl,
       );
+
       if (ok) {
-        await UpnpService.instance.play(discovery.speakerIp!);
         state = state.copyWith(isPlaying: true);
+        _startRemotePolling(discovery.speakerIp!);
       } else {
-        _logger.w('Audio: Falló enlace UPnP — reproduciendo localmente.');
+        _logger.w('Audio Wi-Fi: Falló enlace con altavoz — recurriendo a reproducción local.');
+        _stopRemotePolling();
         await _playLocal(track);
       }
     } else {
-      _logger.i('Audio: Reproducción directa en dispositivo móvil.');
+      _logger.i('Audio: Modo Local / Bluetooth activo en dispositivo móvil.');
+      _stopRemotePolling();
       await _playLocal(track);
     }
+  }
+
+  // ─── Polling de Estado para Altavoz Wi-Fi (Auto-Advance Remoto) ──────────────
+
+  void _startRemotePolling(String speakerIp) {
+    _stopRemotePolling();
+    _remotePollingTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      if (!state.isPlaying) return;
+      try {
+        final remote = await UpnpService.instance.getRemotePlayerStatus(speakerIp);
+        if (remote != null) {
+          state = state.copyWith(
+            positionSeconds: remote.currentPositionSeconds,
+            durationSeconds: remote.totalDurationSeconds > 0
+                ? remote.totalDurationSeconds
+                : state.durationSeconds,
+          );
+
+          // Transición automática al detectar que la canción finalizó en el altavoz
+          if (remote.isStopped || remote.isNearEnd) {
+            _logger.i('Audio Wi-Fi Auto-Advance: Canción finalizada en WCS50 (${remote.status}, pos: ${remote.currentPositionSeconds}s / ${remote.totalDurationSeconds}s) → Siguiente pista');
+            _stopRemotePolling();
+            await skipToNext();
+          }
+        }
+      } catch (e) {
+        _logger.d('Error en polling de estado remoto: $e');
+      }
+    });
+  }
+
+  void _stopRemotePolling() {
+    _remotePollingTimer?.cancel();
+    _remotePollingTimer = null;
   }
 
   Future<void> _playLocal(Track track) async {
@@ -184,10 +240,11 @@ class AudioNotifier extends StateNotifier<AudioState> {
 
   Future<void> pause() async {
     state = state.copyWith(isPlaying: false);
+    _stopRemotePolling();
     final discovery = _ref.read(discoveryServiceProvider);
     if (discovery.mode == AudioOutputMode.wifiSpeaker &&
         discovery.speakerIp != null) {
-      await UpnpService.instance.pause(discovery.speakerIp!);
+      await UpnpService.instance.pauseOnLinkplayOrUpnp(discovery.speakerIp!);
     } else {
       try {
         await _localPlayer.pause();
@@ -207,7 +264,8 @@ class AudioNotifier extends StateNotifier<AudioState> {
     final discovery = _ref.read(discoveryServiceProvider);
     if (discovery.mode == AudioOutputMode.wifiSpeaker &&
         discovery.speakerIp != null) {
-      await UpnpService.instance.play(discovery.speakerIp!);
+      await UpnpService.instance.resumeOnLinkplayOrUpnp(discovery.speakerIp!);
+      _startRemotePolling(discovery.speakerIp!);
     } else {
       try {
         await _localPlayer.play();
@@ -323,6 +381,7 @@ class AudioNotifier extends StateNotifier<AudioState> {
 
   @override
   void dispose() {
+    _stopRemotePolling();
     _localPlayer.dispose();
     super.dispose();
   }

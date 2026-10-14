@@ -10,6 +10,28 @@ import 'package:http/http.dart' as http;
 import 'package:bella_music/utils/network_validator.dart';
 import 'package:logger/logger.dart';
 
+// ─── Remote Player Status Model ───────────────────────────────────────────────
+
+class LinkplayPlayerStatus {
+  final String status; // 'play', 'pause', 'stop', 'load'
+  final int currentPositionSeconds;
+  final int totalDurationSeconds;
+
+  const LinkplayPlayerStatus({
+    required this.status,
+    required this.currentPositionSeconds,
+    required this.totalDurationSeconds,
+  });
+
+  bool get isPlaying => status.toLowerCase() == 'play';
+  bool get isPaused  => status.toLowerCase() == 'pause';
+  bool get isStopped => status.toLowerCase() == 'stop';
+
+  /// Detects when track has finished or is within 2 seconds of completion
+  bool get isNearEnd =>
+      totalDurationSeconds > 0 && currentPositionSeconds >= (totalDurationSeconds - 2);
+}
+
 class UpnpService {
   UpnpService._();
   static final UpnpService instance = UpnpService._();
@@ -17,6 +39,112 @@ class UpnpService {
   final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 
   static const Duration _timeout = Duration(seconds: 8);
+  static const Duration _httpApiTimeout = Duration(seconds: 4);
+
+  // ─── Hybrid Dispatch: Linkplay A31 HTTP API & UPnP/SOAP Fallback ────────────
+
+  /// Dispatches play command to Power Dynamics WCS50 via Linkplay HTTP API or UPnP SOAP
+  Future<bool> playOnLinkplayOrUpnp({
+    required String speakerIp,
+    required String streamUrl,
+    int upnpPort = 49152,
+  }) async {
+    if (!NetworkValidator.isPrivateIp(speakerIp)) {
+      _logger.e('Audio Wi-Fi: Rechazada IP no privada: $speakerIp');
+      return false;
+    }
+
+    // 1. Despacho primario: Linkplay A31 HTTP GET API (Puerto 80)
+    try {
+      final linkplayUri = Uri.parse(
+        'http://$speakerIp/httpapi.asp?command=setPlayerCmd:play:${Uri.encodeComponent(streamUrl)}',
+      );
+      final res = await http.get(linkplayUri).timeout(_httpApiTimeout);
+      if (res.statusCode == 200 && (res.body.contains('OK') || res.body.contains('success'))) {
+        _logger.i('Audio Wi-Fi: Comando setPlayerCmd:play ejecutado con éxito vía HTTP API.');
+        return true;
+      }
+    } catch (e) {
+      _logger.d('Linkplay HTTP API no respondió ($e) — recurriendo a fallback UPnP SOAP.');
+    }
+
+    // 2. Fallback secundario: UPnP / DLNA SetAVTransportURI + Play (Puerto 49152)
+    final okUri = await setAvTransportUri(
+      speakerIp: speakerIp,
+      port: upnpPort,
+      streamUrl: streamUrl,
+    );
+    if (okUri) {
+      return play(speakerIp, port: upnpPort);
+    }
+    return false;
+  }
+
+  /// Dispatches pause command to WCS50
+  Future<bool> pauseOnLinkplayOrUpnp(String speakerIp, {int upnpPort = 49152}) async {
+    if (!NetworkValidator.isPrivateIp(speakerIp)) return false;
+    try {
+      final uri = Uri.parse('http://$speakerIp/httpapi.asp?command=setPlayerCmd:pause');
+      final res = await http.get(uri).timeout(_httpApiTimeout);
+      if (res.statusCode == 200) return true;
+    } catch (_) {}
+    return pause(speakerIp, port: upnpPort);
+  }
+
+  /// Dispatches resume command to WCS50
+  Future<bool> resumeOnLinkplayOrUpnp(String speakerIp, {int upnpPort = 49152}) async {
+    if (!NetworkValidator.isPrivateIp(speakerIp)) return false;
+    try {
+      final uri = Uri.parse('http://$speakerIp/httpapi.asp?command=setPlayerCmd:resume');
+      final res = await http.get(uri).timeout(_httpApiTimeout);
+      if (res.statusCode == 200) return true;
+    } catch (_) {}
+    return play(speakerIp, port: upnpPort);
+  }
+
+  /// Dispatches stop command to WCS50
+  Future<bool> stopOnLinkplayOrUpnp(String speakerIp, {int upnpPort = 49152}) async {
+    if (!NetworkValidator.isPrivateIp(speakerIp)) return false;
+    try {
+      final uri = Uri.parse('http://$speakerIp/httpapi.asp?command=setPlayerCmd:stop');
+      final res = await http.get(uri).timeout(_httpApiTimeout);
+      if (res.statusCode == 200) return true;
+    } catch (_) {}
+    return stop(speakerIp, port: upnpPort);
+  }
+
+  /// Polls Linkplay player status (status, totlen, curpos) for auto-advance
+  Future<LinkplayPlayerStatus?> getRemotePlayerStatus(String speakerIp) async {
+    if (!NetworkValidator.isPrivateIp(speakerIp)) return null;
+
+    try {
+      final uri = Uri.parse('http://$speakerIp/httpapi.asp?command=getPlayerStatus');
+      final res = await http.get(uri).timeout(const Duration(seconds: 3));
+      if (res.statusCode == 200 && res.body.isNotEmpty) {
+        final data = jsonDecode(res.body);
+        if (data is Map) {
+          final statusStr = data['status']?.toString() ?? 'stop';
+          int curpos = (int.tryParse(data['curpos']?.toString() ?? '0')) ?? 0;
+          int totlen = (int.tryParse(data['totlen']?.toString() ?? '0')) ?? 0;
+
+          // Linkplay returns curpos/totlen in ms when large; normalize to seconds
+          if (curpos > 10000 || totlen > 10000) {
+            curpos = curpos ~/ 1000;
+            totlen = totlen ~/ 1000;
+          }
+
+          return LinkplayPlayerStatus(
+            status: statusStr,
+            currentPositionSeconds: curpos,
+            totalDurationSeconds: totlen,
+          );
+        }
+      }
+    } catch (_) {
+      // Endpoint may be sleeping or busy; return null for graceful cycle
+    }
+    return null;
+  }
 
   // ─── SetAVTransportURI (start streaming a URL on the speaker) ─────────────
   Future<bool> setAvTransportUri({

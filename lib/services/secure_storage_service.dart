@@ -34,6 +34,8 @@ class SecureStorageService {
   // ─── Key Constants ────────────────────────────────────────────────────────
   static const String _kDeezerToken   = 'bella_deezer_token';
   static const String _kAmazonToken   = 'bella_amazon_token';
+  static const String _kSpotifyToken  = 'bella_spotify_token';
+  static const String _kTidalToken    = 'bella_tidal_token';
   static const String _kDeviceKey     = 'bella_device_key';
   static const String _kLastSpeakerIp = 'bella_last_speaker_ip';
 
@@ -52,6 +54,22 @@ class SecureStorageService {
   }
 
   Future<String?> getAmazonToken() => _storage.read(key: _kAmazonToken);
+
+  // ─── Spotify ──────────────────────────────────────────────────────────────
+  Future<void> saveSpotifyToken(String token) async {
+    await _storage.write(key: _kSpotifyToken, value: token);
+    _logger.i('Spotify token saved to secure storage.');
+  }
+
+  Future<String?> getSpotifyToken() => _storage.read(key: _kSpotifyToken);
+
+  // ─── Tidal ────────────────────────────────────────────────────────────────
+  Future<void> saveTidalToken(String token) async {
+    await _storage.write(key: _kTidalToken, value: token);
+    _logger.i('Tidal token saved to secure storage.');
+  }
+
+  Future<String?> getTidalToken() => _storage.read(key: _kTidalToken);
 
   // ─── Device pairing key ───────────────────────────────────────────────────
   Future<void> saveDeviceKey(String key) =>

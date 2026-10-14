@@ -182,18 +182,20 @@ ST: urn:schemas-upnp-org:device:MediaRenderer:1\r
     }
   }
 
-  /// Sends a lightweight HTTP HEAD to the device's default port to confirm alive
+  /// Sends a lightweight HTTP check to Linkplay HTTP API (port 80) or UPnP (port 49152) to confirm alive
   Future<bool> _pingDevice(String ip) async {
-    try {
-      final client = HttpClient();
-      client.connectionTimeout = const Duration(seconds: 2);
-      final req = await client.headUrl(Uri.parse('http://$ip:49152'));
-      final resp = await req.close();
-      client.close();
-      return resp.statusCode < 500;
-    } catch (_) {
-      return false;
+    for (final port in [80, 49152]) {
+      try {
+        final client = HttpClient();
+        client.connectionTimeout = const Duration(seconds: 2);
+        final path = port == 80 ? '/httpapi.asp?command=getPlayerStatus' : '';
+        final req = await client.headUrl(Uri.parse('http://$ip:$port$path'));
+        final resp = await req.close();
+        client.close();
+        if (resp.statusCode < 500) return true;
+      } catch (_) {}
     }
+    return false;
   }
 }
 

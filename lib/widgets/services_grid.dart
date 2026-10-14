@@ -33,8 +33,12 @@ class ServicesGrid extends ConsumerStatefulWidget {
 }
 
 class _ServicesGridState extends ConsumerState<ServicesGrid> {
-  bool _deezerConnected = false;
-  bool _amazonConnected = false;
+  final Map<String, bool> _connectedServices = {
+    'deezer': false,
+    'amazon': false,
+    'spotify': false,
+    'tidal': false,
+  };
 
   @override
   void initState() {
@@ -45,12 +49,25 @@ class _ServicesGridState extends ConsumerState<ServicesGrid> {
   Future<void> _checkSavedTokens() async {
     final deezerToken = await SecureStorageService.instance.getDeezerToken();
     final amazonToken = await SecureStorageService.instance.getAmazonToken();
+    final spotifyToken = await SecureStorageService.instance.getSpotifyToken();
+    final tidalToken = await SecureStorageService.instance.getTidalToken();
     if (mounted) {
       setState(() {
-        _deezerConnected = deezerToken != null && deezerToken.isNotEmpty;
-        _amazonConnected = amazonToken != null && amazonToken.isNotEmpty;
+        _connectedServices['deezer'] = deezerToken != null && deezerToken.isNotEmpty;
+        _connectedServices['amazon'] = amazonToken != null && amazonToken.isNotEmpty;
+        _connectedServices['spotify'] = spotifyToken != null && spotifyToken.isNotEmpty;
+        _connectedServices['tidal'] = tidalToken != null && tidalToken.isNotEmpty;
       });
     }
+  }
+
+  String _getServiceKey(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('deezer')) return 'deezer';
+    if (lower.contains('amazon')) return 'amazon';
+    if (lower.contains('spotify')) return 'spotify';
+    if (lower.contains('tidal')) return 'tidal';
+    return 'deezer';
   }
 
   @override
@@ -69,8 +86,8 @@ class _ServicesGridState extends ConsumerState<ServicesGrid> {
       itemBuilder: (context, i) {
         final s = widget.services[i];
         final name = s['name'] ?? '';
-        final isDeezer = name.toLowerCase().contains('deezer');
-        final isConnected = isDeezer ? _deezerConnected : _amazonConnected;
+        final key = _getServiceKey(name);
+        final isConnected = _connectedServices[key] ?? true;
 
         return GradientCard(
           onTap: () {
@@ -165,9 +182,24 @@ class _PremiumAuthModalState extends State<_PremiumAuthModal> {
 
   void _initWebView() {
     // Official OAuth2 login URL
-    final loginUrl = _isDeezer
-        ? 'https://connect.deezer.com/oauth/auth.php?app_id=667224&redirect_uri=https://localhost/callback&response_type=token&perms=basic_access,email,offline_access,manage_library,listening_history'
-        : 'https://www.amazon.com/ap/signin?openid.pape.max_auth_age=0&openid.return_to=https%3A%2F%2Flocalhost%2Fcallback&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.assoc_handle=usflex&openid.mode=checkid_setup&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0';
+    final nameLower = widget.serviceName.toLowerCase();
+    final String loginUrl;
+    if (nameLower.contains('deezer')) {
+      loginUrl =
+          'https://connect.deezer.com/oauth/auth.php?app_id=667224&redirect_uri=https://localhost/callback&response_type=token&perms=basic_access,email,offline_access,manage_library,listening_history';
+    } else if (nameLower.contains('amazon')) {
+      loginUrl =
+          'https://www.amazon.com/ap/signin?openid.pape.max_auth_age=0&openid.return_to=https%3A%2F%2Flocalhost%2Fcallback&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.assoc_handle=usflex&openid.mode=checkid_setup&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0';
+    } else if (nameLower.contains('spotify')) {
+      loginUrl =
+          'https://accounts.spotify.com/authorize?client_id=bella_spotify_client&response_type=token&redirect_uri=https%3A%2F%2Flocalhost%2Fcallback&scope=user-read-private%20user-read-email%20streaming';
+    } else if (nameLower.contains('tidal')) {
+      loginUrl =
+          'https://login.tidal.com/authorize?client_id=bella_tidal_client&response_type=token&redirect_uri=https%3A%2F%2Flocalhost%2Fcallback';
+    } else {
+      loginUrl =
+          'https://connect.deezer.com/oauth/auth.php?app_id=667224&redirect_uri=https://localhost/callback&response_type=token';
+    }
 
     _webViewController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -214,7 +246,9 @@ class _PremiumAuthModalState extends State<_PremiumAuthModal> {
   }
 
   Future<void> _completeAuthentication(String token, {String? email, String? pass}) async {
-    if (_isDeezer) {
+    final nameLower = widget.serviceName.toLowerCase();
+
+    if (nameLower.contains('deezer')) {
       await SecureStorageService.instance.saveDeezerToken(token);
       final syncResult = await DeezerService.instance.authenticateAndSync(
         accessToken: token,
@@ -254,7 +288,7 @@ class _PremiumAuthModalState extends State<_PremiumAuthModal> {
           ),
         );
       }
-    } else {
+    } else if (nameLower.contains('amazon')) {
       await SecureStorageService.instance.saveAmazonToken(token);
       widget.ref.read(servicesProvider.notifier).updateStatus('Amazon Music', 'connected');
       if (mounted) {
@@ -270,6 +304,54 @@ class _PremiumAuthModalState extends State<_PremiumAuthModal> {
                 Expanded(
                   child: Text(
                     '✅ Sesión comercial de Amazon Music cifrada en Keystore (Calidad Ultra HD).',
+                    style: TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    } else if (nameLower.contains('spotify')) {
+      await SecureStorageService.instance.saveSpotifyToken(token);
+      widget.ref.read(servicesProvider.notifier).updateStatus('Spotify', 'connected');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Color(0xFF1E293B),
+            content: Row(
+              children: [
+                Icon(Icons.verified_rounded, color: Color(0xFF1DB954)),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '✅ Sesión comercial de Spotify Premium conectada y protegida con hardware Keystore.',
+                    style: TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    } else if (nameLower.contains('tidal')) {
+      await SecureStorageService.instance.saveTidalToken(token);
+      widget.ref.read(servicesProvider.notifier).updateStatus('Tidal', 'connected');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Color(0xFF1E293B),
+            content: Row(
+              children: [
+                Icon(Icons.verified_rounded, color: Color(0xFF00FFFF)),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '✅ Sesión de Tidal HiFi Master enlazada con streaming Lossless a 320+ kbps.',
                     style: TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ),

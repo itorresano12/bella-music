@@ -155,6 +155,32 @@ class HomeScreen extends ConsumerWidget {
                 ServicesGrid.openAuthModal(context, ref, 'Amazon Music');
               },
             ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Text('🟢', style: TextStyle(fontSize: 24)),
+              title: const Text('Iniciar Sesión Spotify Premium',
+                  style: TextStyle(color: Colors.white, fontSize: 14)),
+              subtitle: const Text('Streaming comercial oficial',
+                  style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 11)),
+              trailing: const Icon(Icons.chevron_right_rounded, color: AppTheme.onSurfaceSub),
+              onTap: () {
+                Navigator.pop(ctx);
+                ServicesGrid.openAuthModal(context, ref, 'Spotify');
+              },
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Text('⬛', style: TextStyle(fontSize: 24)),
+              title: const Text('Iniciar Sesión Tidal HiFi',
+                  style: TextStyle(color: Colors.white, fontSize: 14)),
+              subtitle: const Text('Streaming Lossless Master Audio',
+                  style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 11)),
+              trailing: const Icon(Icons.chevron_right_rounded, color: AppTheme.onSurfaceSub),
+              onTap: () {
+                Navigator.pop(ctx);
+                ServicesGrid.openAuthModal(context, ref, 'Tidal');
+              },
+            ),
             const Divider(color: Colors.white12, height: 24),
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -1176,6 +1202,26 @@ class _SettingsTab extends ConsumerWidget {
                   subtitle: const Text('Credenciales de streaming cifradas en Hardware Keystore', style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 11)),
                   trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white54),
                   onTap: () => ServicesGrid.openAuthModal(context, ref, 'Amazon Music'),
+                ),
+                const SizedBox(height: 10),
+                ListTile(
+                  tileColor: AppTheme.surfaceLight,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  leading: const Text('🟢', style: TextStyle(fontSize: 24)),
+                  title: const Text('Iniciar Sesión Spotify Premium', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  subtitle: const Text('Streaming comercial y playlists en la nube', style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 11)),
+                  trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white54),
+                  onTap: () => ServicesGrid.openAuthModal(context, ref, 'Spotify'),
+                ),
+                const SizedBox(height: 10),
+                ListTile(
+                  tileColor: AppTheme.surfaceLight,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  leading: const Text('⬛', style: TextStyle(fontSize: 24)),
+                  title: const Text('Iniciar Sesión Tidal HiFi', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  subtitle: const Text('Streaming Lossless Master Audio a 320+ kbps', style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 11)),
+                  trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white54),
+                  onTap: () => ServicesGrid.openAuthModal(context, ref, 'Tidal'),
                 ),
               ],
             ),

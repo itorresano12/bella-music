@@ -160,6 +160,18 @@ class ServicesNotifier extends StateNotifier<List<Map<String, String>>> {
             'color': '#F97316',
             'status': 'connected',
           },
+          {
+            'name': 'Spotify',
+            'icon': '🟢',
+            'color': '#1DB954',
+            'status': 'connected',
+          },
+          {
+            'name': 'Tidal',
+            'icon': '⬛',
+            'color': '#00FFFF',
+            'status': 'connected',
+          },
         ]);
 
   void updateStatus(String name, String status) {

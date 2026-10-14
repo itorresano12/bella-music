@@ -12,39 +12,39 @@
 -->
 <network-security-config>
 
-    <!-- Default: HTTPS-only for all external domains -->
-    <base-config cleartextTrafficPermitted="false">
+    <!-- Base config: Cleartext permitted for local RFC-1918 LAN devices (WCS50 Linkplay port 80 / UPnP port 49152) -->
+    <!-- Application-level SSRF guard (NetworkValidator.dart) strictly ensures HTTP is only dispatched to 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 -->
+    <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
-            <!-- Trust the system CA store (standard certificates) -->
             <certificates src="system" />
         </trust-anchors>
     </base-config>
 
-    <!-- ─── Deezer API ─────────────────────────────────────────────────── -->
+    <!-- ─── Strict TLS Enforcement: External streaming & API domains NEVER allow cleartext ─── -->
     <domain-config cleartextTrafficPermitted="false">
+        <!-- Deezer -->
         <domain includeSubdomains="true">api.deezer.com</domain>
         <domain includeSubdomains="true">connect.deezer.com</domain>
-        <trust-anchors>
-            <certificates src="system" />
-        </trust-anchors>
-    </domain-config>
-
-    <!-- ─── Amazon Music API ──────────────────────────────────────────── -->
-    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">deezer.com</domain>
+        <domain includeSubdomains="true">dzcdn.net</domain>
+        <!-- Amazon Music -->
         <domain includeSubdomains="true">api.amazon.com</domain>
         <domain includeSubdomains="true">music.amazon.com</domain>
+        <domain includeSubdomains="true">amazon.com</domain>
+        <!-- Spotify -->
+        <domain includeSubdomains="true">api.spotify.com</domain>
+        <domain includeSubdomains="true">accounts.spotify.com</domain>
+        <domain includeSubdomains="true">spotify.com</domain>
+        <!-- Tidal -->
+        <domain includeSubdomains="true">api.tidal.com</domain>
+        <domain includeSubdomains="true">login.tidal.com</domain>
+        <domain includeSubdomains="true">tidal.com</domain>
+        <!-- Assets & Media Fallbacks -->
+        <domain includeSubdomains="true">picsum.photos</domain>
+        <domain includeSubdomains="true">soundhelix.com</domain>
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
-    </domain-config>
-
-    <!-- ─── LAN / UPnP (local network only — cleartext permitted) ─────── -->
-    <!-- NOTE: IP ranges are not supported in domain-config; the SSRF
-         validation in NetworkValidator.dart ensures only private IPs
-         receive UPnP packets before any network call is made. -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">192.168.1.1</domain>
-        <!-- Add your specific LAN subnet router IP here if needed -->
     </domain-config>
 
 </network-security-config>
