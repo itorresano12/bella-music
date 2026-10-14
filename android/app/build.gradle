@@ -88,6 +88,8 @@ android {
             // Strip debug symbols from native libraries
             keepDebugSymbols -= ['**/*.so']
         }
+    }
+
     lint {
         checkReleaseBuilds false
         abortOnError false
