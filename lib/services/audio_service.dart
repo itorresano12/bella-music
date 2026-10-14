@@ -20,7 +20,7 @@ import 'package:logger/logger.dart';
 
 // ─── Repeat Mode Enum ─────────────────────────────────────────────────────────
 
-enum RepeatMode { off, all, one }
+enum AudioRepeatMode { off, all, one }
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -32,7 +32,7 @@ class AudioState {
     this.durationSeconds = 0,
     this.volume = 0.8,
     this.isShuffle = false,
-    this.repeatMode = RepeatMode.off,
+    this.repeatMode = AudioRepeatMode.off,
   });
 
   final Track? currentTrack;
@@ -41,7 +41,7 @@ class AudioState {
   final int durationSeconds;
   final double volume;
   final bool isShuffle;
-  final RepeatMode repeatMode;
+  final AudioRepeatMode repeatMode;
 
   AudioState copyWith({
     Track? currentTrack,
@@ -50,7 +50,7 @@ class AudioState {
     int? durationSeconds,
     double? volume,
     bool? isShuffle,
-    RepeatMode? repeatMode,
+    AudioRepeatMode? repeatMode,
   }) =>
       AudioState(
         currentTrack: currentTrack ?? this.currentTrack,
@@ -94,7 +94,7 @@ class AudioNotifier extends StateNotifier<AudioState> {
       // Auto-advance to next song upon completion
       _localPlayer.playerStateStream.listen((playerState) {
         if (playerState.processingState == ProcessingState.completed) {
-          if (state.repeatMode == RepeatMode.one) {
+          if (state.repeatMode == AudioRepeatMode.one) {
             seekTo(0);
             resume();
           } else {
@@ -233,9 +233,9 @@ class AudioNotifier extends StateNotifier<AudioState> {
 
   void toggleRepeat() {
     final nextMode = switch (state.repeatMode) {
-      RepeatMode.off => RepeatMode.all,
-      RepeatMode.all => RepeatMode.one,
-      RepeatMode.one => RepeatMode.off,
+      AudioRepeatMode.off => AudioRepeatMode.all,
+      AudioRepeatMode.all => AudioRepeatMode.one,
+      AudioRepeatMode.one => AudioRepeatMode.off,
     };
     state = state.copyWith(repeatMode: nextMode);
     _logger.i('Audio: Modo Repetición cambiado a $nextMode');
@@ -247,7 +247,7 @@ class AudioNotifier extends StateNotifier<AudioState> {
     final tracks = _ref.read(recentTracksProvider);
     if (tracks.isEmpty) return;
 
-    if (state.repeatMode == RepeatMode.one) {
+    if (state.repeatMode == AudioRepeatMode.one) {
       await seekTo(0);
       await resume();
       return;
@@ -270,7 +270,7 @@ class AudioNotifier extends StateNotifier<AudioState> {
 
     int nextIndex = currentIndex + 1;
     if (nextIndex >= tracks.length) {
-      if (state.repeatMode == RepeatMode.all) {
+      if (state.repeatMode == AudioRepeatMode.all) {
         nextIndex = 0;
       } else {
         await pause();

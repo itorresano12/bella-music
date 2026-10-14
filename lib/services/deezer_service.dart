@@ -64,6 +64,10 @@ class DeezerService {
     return [];
   }
 
+  /// Retrieves playlist tracks (delegates to getAllPlaylistTracks for full coverage)
+  Future<List<Track>> getPlaylistTracks(String playlistId, {String? token}) =>
+      getAllPlaylistTracks(playlistId, token: token);
+
   /// Retrieves ALL tracks of a playlist via iterative pagination loop (up to 321+ tracks)
   Future<List<Track>> getAllPlaylistTracks(String playlistId, {String? token}) async {
     final List<Track> allTracks = [];

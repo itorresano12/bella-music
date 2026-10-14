@@ -208,12 +208,12 @@ class _NowPlayingBarState extends ConsumerState<NowPlayingBar>
                       ),
                       IconButton(
                         icon: Icon(
-                          audioState.repeatMode == RepeatMode.one
+                          audioState.repeatMode == AudioRepeatMode.one
                               ? Icons.repeat_one_rounded
                               : Icons.repeat_rounded,
                           size: 20,
                         ),
-                        color: audioState.repeatMode != RepeatMode.off
+                        color: audioState.repeatMode != AudioRepeatMode.off
                             ? AppTheme.accentBlue
                             : AppTheme.onSurfaceSub,
                         onPressed: () => audioNotifier.toggleRepeat(),
