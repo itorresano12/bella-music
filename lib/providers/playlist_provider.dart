@@ -1,120 +1,107 @@
 // lib/providers/playlist_provider.dart
 // Reactive state management with Riverpod:
-//   • Dynamic playlists & tracks connected to Deezer API
+//   • Dynamic user playlists explorer connected to active music provider (Deezer, Amazon, Spotify, Tidal)
+//   • Full-length track streaming & auto-pagination
 //   • Active navigation tab provider (0: Inicio, 1: Buscar, 2: Librería, 3: Ajustes)
 //   • Real-time track search provider
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bella_music/models/playlist_model.dart';
-import 'package:bella_music/services/deezer_service.dart';
+import 'package:bella_music/services/base_music_service.dart';
+import 'package:bella_music/services/audio_service.dart';
+import 'package:logger/logger.dart';
 
-// ─── Initial Fallback Data ──────────────────────────────────────────────────
+// ─── Selected Playlist & Loading State ────────────────────────────────────────
 
-final _initialPlaylists = [
-  const Playlist(
-    id: '15821465801',
-    name: 'Tasty Santander',
-    coverUrl: 'https://cdn-images.dzcdn.net/images/cover/08304eb172098540c635de98530d4929/250x250-000000-80-0-0.jpg',
-    trackCount: 321,
-    source: 'deezer',
-  ),
-  const Playlist(
-    id: '2',
-    name: 'Late Night Vibes',
-    coverUrl: 'https://picsum.photos/seed/night/400/400',
-    trackCount: 18,
-    source: 'amazon',
-  ),
-  const Playlist(
-    id: '3',
-    name: 'Deep Focus',
-    coverUrl: 'https://picsum.photos/seed/focus/400/400',
-    trackCount: 45,
-    source: 'deezer',
-  ),
-  const Playlist(
-    id: '4',
-    name: 'Electric Summer',
-    coverUrl: 'https://picsum.photos/seed/summer/400/400',
-    trackCount: 27,
-    source: 'amazon',
-  ),
-];
+final selectedPlaylistProvider = StateProvider<Playlist?>((ref) => null);
+final isPlaylistLoadingProvider = StateProvider<bool>((ref) => false);
 
-final _initialTracks = [
-  const Track(
-    id: 't1',
-    title: 'Neon Dreams',
-    artist: 'Synthwave Collective',
-    albumArt: 'https://picsum.photos/seed/neon/400/400',
-    streamUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-    durationSeconds: 214,
-    source: 'deezer',
-  ),
-  const Track(
-    id: 't2',
-    title: 'Midnight City',
-    artist: 'Echo Waves',
-    albumArt: 'https://picsum.photos/seed/midnight/400/400',
-    streamUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-    durationSeconds: 183,
-    source: 'amazon',
-  ),
-  const Track(
-    id: 't3',
-    title: 'Purple Horizon',
-    artist: 'Violet Pulse',
-    albumArt: 'https://picsum.photos/seed/purple/400/400',
-    streamUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
-    durationSeconds: 267,
-    source: 'deezer',
-  ),
-];
+// ─── User Playlists Notifier ──────────────────────────────────────────────────
 
-// ─── Playlists Notifier ─────────────────────────────────────────────────────
-
-class PlaylistsNotifier extends StateNotifier<List<Playlist>> {
-  PlaylistsNotifier() : super(_initialPlaylists) {
-    _autoLoadRealPlaylists();
+class UserPlaylistsNotifier extends StateNotifier<List<Playlist>> {
+  UserPlaylistsNotifier(this._ref) : super(const []) {
+    fetchUserPlaylists();
   }
 
-  Future<void> _autoLoadRealPlaylists() async {
+  final Ref _ref;
+  final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
+
+  /// Queries the active connected music service for the user's personal playlists
+  Future<void> fetchUserPlaylists({String? serviceId}) async {
+    _logger.i('Playlists: Consultando catálogo de playlists del usuario…');
     try {
-      final real = await DeezerService.instance.searchPlaylists('Tasty Santander');
-      if (real.isNotEmpty) {
-        state = real;
+      final service = serviceId != null
+          ? MusicServiceRegistry.get(serviceId)
+          : await MusicServiceRegistry.getActiveService();
+
+      final playlists = await service.getUserPlaylists();
+      if (playlists.isNotEmpty) {
+        state = playlists;
+        _logger.i('Playlists: ${playlists.length} playlists cargadas de ${service.displayName}.');
+
+        // Seleccionar automáticamente la primera lista si aún no hay ninguna activa
+        if (_ref.read(selectedPlaylistProvider) == null) {
+          await selectPlaylist(playlists.first, autoPlay: false, switchToLibrary: false);
+        }
       }
-    } catch (_) {}
+    } catch (e) {
+      _logger.e('Error al obtener playlists de usuario: $e');
+    }
+  }
+
+  /// Selects a playlist, fetches all its tracks (with full pagination),
+  /// updates the playback queue and opens the Library tab.
+  Future<void> selectPlaylist(
+    Playlist playlist, {
+    bool autoPlay = false,
+    bool switchToLibrary = true,
+  }) async {
+    _logger.i('Playlists: Seleccionada playlist "${playlist.name}" (${playlist.trackCount} temas).');
+    _ref.read(selectedPlaylistProvider.notifier).state = playlist;
+    _ref.read(isPlaylistLoadingProvider.notifier).state = true;
+
+    try {
+      final service = MusicServiceRegistry.get(playlist.source);
+      final tracks = await service.getPlaylistTracks(playlist.id);
+
+      if (tracks.isNotEmpty) {
+        _ref.read(recentTracksProvider.notifier).setTracks(tracks);
+        _ref.read(currentTrackProvider.notifier).state = tracks.first;
+
+        if (autoPlay) {
+          await _ref.read(audioServiceProvider.notifier).playTrack(tracks.first);
+        }
+      }
+    } catch (e) {
+      _logger.e('Error cargando canciones de playlist "${playlist.name}": $e');
+    } finally {
+      _ref.read(isPlaylistLoadingProvider.notifier).state = false;
+      if (switchToLibrary) {
+        _ref.read(currentTabProvider.notifier).state = 2; // Pestaña Librería
+      }
+    }
   }
 
   void setPlaylists(List<Playlist> list) {
     state = list;
+    if (list.isNotEmpty && _ref.read(selectedPlaylistProvider) == null) {
+      selectPlaylist(list.first, autoPlay: false, switchToLibrary: false);
+    }
   }
 }
 
-final playlistsProvider =
-    StateNotifierProvider<PlaylistsNotifier, List<Playlist>>(
-  (ref) => PlaylistsNotifier(),
+final userPlaylistsProvider =
+    StateNotifierProvider<UserPlaylistsNotifier, List<Playlist>>(
+  (ref) => UserPlaylistsNotifier(ref),
 );
+
+// Backwards-compatible alias for existing consumers
+final playlistsProvider = userPlaylistsProvider;
 
 // ─── Tracks Notifier ────────────────────────────────────────────────────────
 
 class RecentTracksNotifier extends StateNotifier<List<Track>> {
-  RecentTracksNotifier() : super(_initialTracks) {
-    _autoLoadRealTracks();
-  }
-
-  Future<void> _autoLoadRealTracks() async {
-    try {
-      final playlists = await DeezerService.instance.searchPlaylists('Tasty Santander');
-      if (playlists.isNotEmpty) {
-        final tracks = await DeezerService.instance.getAllPlaylistTracks(playlists.first.id);
-        if (tracks.isNotEmpty) {
-          state = tracks;
-        }
-      }
-    } catch (_) {}
-  }
+  RecentTracksNotifier() : super(const []);
 
   void setTracks(List<Track> list) {
     state = list;
@@ -146,8 +133,8 @@ final isSearchingProvider = StateProvider<bool>((ref) => false);
 // ─── Services Notifier ──────────────────────────────────────────────────────
 
 class ServicesNotifier extends StateNotifier<List<Map<String, String>>> {
-  ServicesNotifier()
-      : super([
+  ServicesNotifier(this._ref)
+      : super(const [
           {
             'name': 'Deezer',
             'icon': '🎵',
@@ -174,15 +161,21 @@ class ServicesNotifier extends StateNotifier<List<Map<String, String>>> {
           },
         ]);
 
+  final Ref _ref;
+
   void updateStatus(String name, String status) {
     state = [
       for (final s in state)
         if (s['name'] == name) {...s, 'status': status} else s
     ];
+
+    if (status == 'connected') {
+      _ref.read(userPlaylistsProvider.notifier).fetchUserPlaylists(serviceId: name);
+    }
   }
 }
 
 final servicesProvider =
     StateNotifierProvider<ServicesNotifier, List<Map<String, String>>>(
-  (ref) => ServicesNotifier(),
+  (ref) => ServicesNotifier(ref),
 );

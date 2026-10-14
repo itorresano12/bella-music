@@ -17,3 +17,4 @@ class KioskModeNotifier extends StateNotifier<bool> {
 final kioskModeProvider = StateNotifierProvider<KioskModeNotifier, bool>((ref) {
   return KioskModeNotifier();
 });
+

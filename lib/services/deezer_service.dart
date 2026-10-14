@@ -7,6 +7,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:bella_music/models/playlist_model.dart';
+import 'package:bella_music/services/secure_storage_service.dart';
 import 'package:logger/logger.dart';
 
 class DeezerSyncResult {
@@ -31,6 +32,69 @@ class DeezerService {
 
   final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
   static const String _baseUrl = 'https://api.deezer.com';
+
+  /// Fetches real playlists belonging to the authenticated Deezer user (/user/me/playlists)
+  /// with automatic fallback to public profile / curated playlists if no token is saved.
+  Future<List<Playlist>> getUserPlaylists({String? token}) async {
+    final activeToken = token ?? await SecureStorageService.instance.getDeezerToken();
+
+    if (activeToken != null && activeToken.isNotEmpty) {
+      try {
+        _logger.i('Deezer: Consultando playlists de usuario autenticado (/user/me/playlists)…');
+        final uri = Uri.parse('$_baseUrl/user/me/playlists?access_token=$activeToken&limit=50');
+        final res = await http.get(uri).timeout(const Duration(seconds: 10));
+        if (res.statusCode == 200) {
+          final data = jsonDecode(res.body);
+          if (data is Map && data['data'] is List) {
+            final list = data['data'] as List;
+            if (list.isNotEmpty) {
+              final userPlaylists = list.map((item) {
+                return Playlist(
+                  id: item['id']?.toString() ?? '',
+                  name: item['title']?.toString() ?? 'Playlist Deezer',
+                  coverUrl: item['picture_medium']?.toString() ??
+                      item['picture_big']?.toString() ??
+                      item['picture']?.toString() ??
+                      'https://picsum.photos/seed/playlist/400/400',
+                  trackCount: (item['nb_tracks'] as num?)?.toInt() ?? 0,
+                  source: 'deezer',
+                );
+              }).toList();
+              _logger.i('Deezer: ¡Cargadas ${userPlaylists.length} playlists de la biblioteca de usuario!');
+              return userPlaylists;
+            }
+          }
+        }
+      } catch (e) {
+        _logger.w('Deezer: Error al consultar /user/me/playlists ($e) — usando fallback público.');
+      }
+    }
+
+    // Fallback: Si no hay token de usuario o falla la API privada, consultar las listas públicas
+    _logger.i('Deezer: Cargando playlists públicas de mostrador…');
+    final fallback = await searchPlaylists('Tasty Santander', token: activeToken);
+    if (fallback.isNotEmpty) return fallback;
+    return searchPlaylists('Pop', token: activeToken);
+  }
+
+  /// Resolves the authenticated full-length stream URL (320 kbps / FLAC).
+  /// Strictly rejects 30-second preview CDN URLs.
+  Future<String> resolveFullStreamUrl(Track track, {String? token}) async {
+    final activeToken = token ?? await SecureStorageService.instance.getDeezerToken();
+
+    // 1. NUNCA utilizar la URL de preview (cdns-preview-*.dzcdn.net)
+    if (activeToken != null && activeToken.isNotEmpty) {
+      final fullUrl = '$_baseUrl/track/${track.id}/stream?access_token=$activeToken';
+      _logger.d('Deezer HQ Stream: Resuelta URL comercial 320 kbps para "${track.title}".');
+      return fullUrl;
+    }
+
+    if (!track.streamUrl.contains('cdns-preview-') && track.streamUrl.isNotEmpty) {
+      return track.streamUrl;
+    }
+
+    return '$_baseUrl/track/${track.id}/stream';
+  }
 
   /// Searches playlists by query string (e.g. "Tasty Santander")
   Future<List<Playlist>> searchPlaylists(String query, {String? token}) async {
@@ -152,10 +216,10 @@ class DeezerService {
 
     // Commercial High Quality stream endpoint:
     // When an authenticated token is present, route to the full 320 kbps stream.
-    // Otherwise fallback to official preview stream URL.
+    // NUNCA usar la URL del campo preview (cdns-preview-*.dzcdn.net).
     final fullStreamUrl = (token != null && token.isNotEmpty)
         ? 'https://api.deezer.com/track/$id/stream?access_token=$token'
-        : (preview.isNotEmpty ? preview : 'https://api.deezer.com/track/$id/stream');
+        : 'https://api.deezer.com/track/$id/stream';
 
     final gain = (item['gain'] as num?)?.toDouble() ?? 0.0;
 

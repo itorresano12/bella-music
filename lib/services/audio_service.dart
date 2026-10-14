@@ -22,6 +22,7 @@ import 'package:bella_music/services/discovery_service.dart';
 import 'package:bella_music/services/linkplay_bridge_service.dart';
 import 'package:bella_music/services/emergency_audio_service.dart';
 import 'package:bella_music/services/secure_storage_service.dart';
+import 'package:bella_music/services/base_music_service.dart';
 import 'package:bella_music/utils/network_validator.dart';
 import 'package:logger/logger.dart';
 
@@ -298,20 +299,47 @@ class AudioNotifier extends StateNotifier<AudioState> {
   // ─── Play a track ──────────────────────────────────────────────────────────
 
   Future<void> playTrack(Track track) async {
+    // 1. Resolución obligatoria de URL completa HQ sin límite de preview
+    Track resolvedTrack = track;
+    try {
+      final service = MusicServiceRegistry.get(track.source);
+      final fullUrl = await service.resolveFullStreamUrl(track);
+      if (fullUrl.isNotEmpty) {
+        resolvedTrack = track.copyWith(streamUrl: fullUrl, isFullLength: true);
+      }
+    } catch (e) {
+      _logger.d('Resolver de stream HQ mantuvo URL base: $e');
+    }
+
+    // 2. Anti-Preview Guard: Si la duración es <= 30s o la URL es de preview, forzar endpoint comercial
+    if (resolvedTrack.durationSeconds > 0 && resolvedTrack.durationSeconds <= 30 ||
+        resolvedTrack.streamUrl.contains('cdns-preview-')) {
+      _logger.w('Detectada pista preview de 30s (${resolvedTrack.title}) → Forzando reintento contra resolver HQ comercial.');
+      try {
+        final token = await SecureStorageService.instance.getDeezerToken();
+        final hqUrl = 'https://api.deezer.com/track/${resolvedTrack.id}/stream${token != null && token.isNotEmpty ? "?access_token=$token" : ""}';
+        resolvedTrack = resolvedTrack.copyWith(
+          streamUrl: hqUrl,
+          durationSeconds: math.max(resolvedTrack.durationSeconds, 180),
+          isFullLength: true,
+        );
+      } catch (_) {}
+    }
+
     state = state.copyWith(
-      currentTrack: track,
+      currentTrack: resolvedTrack,
       isPlaying: true,
-      durationSeconds: track.durationSeconds,
+      durationSeconds: resolvedTrack.durationSeconds,
       positionSeconds: 0,
     );
-    _ref.read(currentTrackProvider.notifier).state = track;
+    _ref.read(currentTrackProvider.notifier).state = resolvedTrack;
 
     // Actualiza metadatos y estado en la sesión del sistema (pantalla de bloqueo)
-    BellaAudioHandler.instance?.updateTrackMetadata(track);
+    BellaAudioHandler.instance?.updateTrackMetadata(resolvedTrack);
     BellaAudioHandler.instance?.updatePlaybackStatus(
       isPlaying: true,
       positionSeconds: 0,
-      durationSeconds: track.durationSeconds,
+      durationSeconds: resolvedTrack.durationSeconds,
     );
 
     final discovery = _ref.read(discoveryServiceProvider);
@@ -333,13 +361,13 @@ class AudioNotifier extends StateNotifier<AudioState> {
       BellaAudioHandler.instance?.setRemoteWifiMode(_activeSpeakerIp);
 
       // Normalización de Ganancia Dinámica (Requisito F)
-      if (track.gainDb != 0.0) {
-        await LinkplayBridgeService.instance.setEqualizerGain(_activeSpeakerIp!, track.gainDb);
+      if (resolvedTrack.gainDb != 0.0) {
+        await LinkplayBridgeService.instance.setEqualizerGain(_activeSpeakerIp!, resolvedTrack.gainDb);
       }
 
       final ok = await UpnpService.instance.playOnLinkplayOrUpnp(
         speakerIp: _activeSpeakerIp!,
-        streamUrl: track.streamUrl,
+        streamUrl: resolvedTrack.streamUrl,
       );
 
       if (ok) {
@@ -347,20 +375,20 @@ class AudioNotifier extends StateNotifier<AudioState> {
         BellaAudioHandler.instance?.updatePlaybackStatus(
           isPlaying: true,
           positionSeconds: 0,
-          durationSeconds: track.durationSeconds,
+          durationSeconds: resolvedTrack.durationSeconds,
         );
         _startRemotePolling(_activeSpeakerIp!);
       } else {
         _logger.w('Audio Wi-Fi: Falló enlace con altavoz — recurriendo a reproducción local.');
         _stopRemotePolling();
         BellaAudioHandler.instance?.setLocalMode();
-        await _playLocal(track);
+        await _playLocal(resolvedTrack);
       }
     } else {
       _logger.i('Audio: Modo Local / Bluetooth activo en dispositivo móvil.');
       _stopRemotePolling();
       BellaAudioHandler.instance?.setLocalMode();
-      await _playLocal(track);
+      await _playLocal(resolvedTrack);
     }
   }
 

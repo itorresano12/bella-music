@@ -28,9 +28,15 @@ abstract class BaseMusicService {
   Future<List<Playlist>> getUserPlaylists();
 
   /// Retrieves all tracks belonging to a given playlist
+  Future<List<Track>> getPlaylistTracks(String playlistId);
+
+  /// Backwards-compatible alias for getPlaylistTracks
   Future<List<Track>> getAllTracks(String playlistId);
 
   /// Resolves high-fidelity (320 kbps) stream URL with injected headers/tokens
+  Future<String> resolveFullStreamUrl(Track track);
+
+  /// Backwards-compatible alias for resolveFullStreamUrl
   Future<String> resolveStreamUrl(Track track);
 }
 
@@ -61,19 +67,26 @@ class DeezerMusicService implements BaseMusicService {
 
   @override
   Future<List<Playlist>> getUserPlaylists() async {
-    final playlists = await DeezerService.instance.searchPlaylists('Tasty Santander');
-    return playlists.isNotEmpty ? playlists : const [];
+    return DeezerService.instance.getUserPlaylists();
   }
 
   @override
-  Future<List<Track>> getAllTracks(String playlistId) async {
+  Future<List<Track>> getPlaylistTracks(String playlistId) async {
     return DeezerService.instance.getAllPlaylistTracks(playlistId);
   }
 
   @override
-  Future<String> resolveStreamUrl(Track track) async {
-    return track.streamUrl;
+  Future<List<Track>> getAllTracks(String playlistId) =>
+      getPlaylistTracks(playlistId);
+
+  @override
+  Future<String> resolveFullStreamUrl(Track track) async {
+    return DeezerService.instance.resolveFullStreamUrl(track);
   }
+
+  @override
+  Future<String> resolveStreamUrl(Track track) =>
+      resolveFullStreamUrl(track);
 }
 
 // ─── Functional Amazon Music Provider ─────────────────────────────────────────
@@ -104,23 +117,37 @@ class AmazonMusicService implements BaseMusicService {
     return const [
       Playlist(
         id: 'amz_1',
+        name: 'Tasty Santander Chill',
+        coverUrl: 'https://picsum.photos/seed/amz1/400/400',
+        trackCount: 24,
+        source: 'amazon',
+      ),
+      Playlist(
+        id: 'amz_2',
         name: 'Late Night Vibes',
         coverUrl: 'https://picsum.photos/seed/night/400/400',
         trackCount: 18,
         source: 'amazon',
       ),
       Playlist(
-        id: 'amz_2',
-        name: 'Electric Summer',
+        id: 'amz_3',
+        name: 'Electric Summer Lounge',
         coverUrl: 'https://picsum.photos/seed/summer/400/400',
         trackCount: 27,
+        source: 'amazon',
+      ),
+      Playlist(
+        id: 'amz_4',
+        name: 'Acoustic Morning',
+        coverUrl: 'https://picsum.photos/seed/acoustic/400/400',
+        trackCount: 32,
         source: 'amazon',
       ),
     ];
   }
 
   @override
-  Future<List<Track>> getAllTracks(String playlistId) async {
+  Future<List<Track>> getPlaylistTracks(String playlistId) async {
     return const [
       Track(
         id: 'amz_t1',
@@ -144,13 +171,32 @@ class AmazonMusicService implements BaseMusicService {
         bitrate: 320,
         isFullLength: true,
       ),
+      Track(
+        id: 'amz_t3',
+        title: 'Velvet Groove',
+        artist: 'Amazon Ultra HD',
+        albumArt: 'https://picsum.photos/seed/velvet/400/400',
+        streamUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3',
+        durationSeconds: 240,
+        source: 'amazon',
+        bitrate: 320,
+        isFullLength: true,
+      ),
     ];
   }
 
   @override
-  Future<String> resolveStreamUrl(Track track) async {
+  Future<List<Track>> getAllTracks(String playlistId) =>
+      getPlaylistTracks(playlistId);
+
+  @override
+  Future<String> resolveFullStreamUrl(Track track) async {
     return track.streamUrl;
   }
+
+  @override
+  Future<String> resolveStreamUrl(Track track) =>
+      resolveFullStreamUrl(track);
 }
 
 // ─── Functional Spotify Provider ──────────────────────────────────────────────
@@ -181,14 +227,21 @@ class SpotifyMusicService implements BaseMusicService {
     return const [
       Playlist(
         id: 'spot_1',
-        name: "Today's Top Hits",
-        coverUrl: 'https://picsum.photos/seed/spotify/400/400',
-        trackCount: 50,
+        name: "Tasty Santander Hits",
+        coverUrl: 'https://picsum.photos/seed/spotify1/400/400',
+        trackCount: 42,
         source: 'spotify',
       ),
       Playlist(
         id: 'spot_2',
-        name: 'Peaceful Piano',
+        name: "Today's Top Hits",
+        coverUrl: 'https://picsum.photos/seed/spotify2/400/400',
+        trackCount: 50,
+        source: 'spotify',
+      ),
+      Playlist(
+        id: 'spot_3',
+        name: 'Peaceful Piano Lounge',
         coverUrl: 'https://picsum.photos/seed/piano/400/400',
         trackCount: 35,
         source: 'spotify',
@@ -197,7 +250,7 @@ class SpotifyMusicService implements BaseMusicService {
   }
 
   @override
-  Future<List<Track>> getAllTracks(String playlistId) async {
+  Future<List<Track>> getPlaylistTracks(String playlistId) async {
     return const [
       Track(
         id: 'spot_t1',
@@ -210,13 +263,32 @@ class SpotifyMusicService implements BaseMusicService {
         bitrate: 320,
         isFullLength: true,
       ),
+      Track(
+        id: 'spot_t2',
+        title: 'Emerald Waves',
+        artist: 'Nordic Sound',
+        albumArt: 'https://picsum.photos/seed/emerald/400/400',
+        streamUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3',
+        durationSeconds: 232,
+        source: 'spotify',
+        bitrate: 320,
+        isFullLength: true,
+      ),
     ];
   }
 
   @override
-  Future<String> resolveStreamUrl(Track track) async {
+  Future<List<Track>> getAllTracks(String playlistId) =>
+      getPlaylistTracks(playlistId);
+
+  @override
+  Future<String> resolveFullStreamUrl(Track track) async {
     return track.streamUrl;
   }
+
+  @override
+  Future<String> resolveStreamUrl(Track track) =>
+      resolveFullStreamUrl(track);
 }
 
 // ─── Functional Tidal Provider ────────────────────────────────────────────────
@@ -247,9 +319,9 @@ class TidalMusicService implements BaseMusicService {
     return const [
       Playlist(
         id: 'tidal_1',
-        name: 'Tidal Masters: Electronic',
-        coverUrl: 'https://picsum.photos/seed/tidal/400/400',
-        trackCount: 40,
+        name: 'Tidal Masters: Santander Club',
+        coverUrl: 'https://picsum.photos/seed/tidal1/400/400',
+        trackCount: 38,
         source: 'tidal',
       ),
       Playlist(
@@ -263,7 +335,7 @@ class TidalMusicService implements BaseMusicService {
   }
 
   @override
-  Future<List<Track>> getAllTracks(String playlistId) async {
+  Future<List<Track>> getPlaylistTracks(String playlistId) async {
     return const [
       Track(
         id: 'tidal_t1',
@@ -280,9 +352,17 @@ class TidalMusicService implements BaseMusicService {
   }
 
   @override
-  Future<String> resolveStreamUrl(Track track) async {
+  Future<List<Track>> getAllTracks(String playlistId) =>
+      getPlaylistTracks(playlistId);
+
+  @override
+  Future<String> resolveFullStreamUrl(Track track) async {
     return track.streamUrl;
   }
+
+  @override
+  Future<String> resolveStreamUrl(Track track) =>
+      resolveFullStreamUrl(track);
 }
 
 // ─── Registry / Factory ───────────────────────────────────────────────────────
@@ -306,6 +386,21 @@ class MusicServiceRegistry {
     return _registry['deezer']!;
   }
 
+  static Future<BaseMusicService> getActiveService() async {
+    final deezerToken = await SecureStorageService.instance.getDeezerToken();
+    if (deezerToken != null && deezerToken.isNotEmpty) return _registry['deezer']!;
+
+    final amazonToken = await SecureStorageService.instance.getAmazonToken();
+    if (amazonToken != null && amazonToken.isNotEmpty) return _registry['amazon']!;
+
+    final spotifyToken = await SecureStorageService.instance.getSpotifyToken();
+    if (spotifyToken != null && spotifyToken.isNotEmpty) return _registry['spotify']!;
+
+    final tidalToken = await SecureStorageService.instance.getTidalToken();
+    if (tidalToken != null && tidalToken.isNotEmpty) return _registry['tidal']!;
+
+    return _registry['deezer']!;
+  }
+
   static List<BaseMusicService> getAll() => _registry.values.toList();
 }
-

@@ -1,6 +1,7 @@
 // lib/widgets/playlist_carousel.dart
 // Horizontal scrolling carousel with interactive playlist cards.
-// Tapping a playlist loads its real tracks from Deezer/Amazon and starts playback.
+// Tapping a playlist marks it as active, loads all its full-length tracks,
+// and smoothly transitions to the Library tab.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,8 +10,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:bella_music/models/playlist_model.dart';
 import 'package:bella_music/providers/playlist_provider.dart';
-import 'package:bella_music/services/audio_service.dart';
-import 'package:bella_music/services/deezer_service.dart';
 import 'package:bella_music/theme/app_theme.dart';
 
 class PlaylistCarousel extends ConsumerWidget {
@@ -20,6 +19,31 @@ class PlaylistCarousel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (playlists.isEmpty) {
+      return Container(
+        height: 160,
+        margin: const EdgeInsets.symmetric(horizontal: 20),
+        decoration: BoxDecoration(
+          color: AppTheme.surface.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: AppTheme.accentViolet, strokeWidth: 2),
+              SizedBox(height: 12),
+              Text(
+                'Sincronizando playlists de tu biblioteca…',
+                style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return SizedBox(
       height: 220,
       child: ListView.builder(
@@ -30,7 +54,7 @@ class PlaylistCarousel extends ConsumerWidget {
           return _PlaylistCard(
             playlist: playlists[index],
             index: index,
-          ).animate().fadeIn(delay: (80 * index).ms).slideX(begin: 0.3, end: 0);
+          ).animate().fadeIn(delay: (60 * index).ms).slideX(begin: 0.2, end: 0);
         },
       ),
     );
@@ -45,6 +69,9 @@ class _PlaylistCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final selectedPlaylist = ref.watch(selectedPlaylistProvider);
+    final isSelected = selectedPlaylist?.id == playlist.id;
+
     return Container(
       width: 160,
       margin: const EdgeInsets.only(right: 16),
@@ -61,34 +88,30 @@ class _PlaylistCard extends ConsumerWidget {
             ),
           );
 
-          if (playlist.source == 'deezer' && playlist.id.isNotEmpty) {
-            final tracks = await DeezerService.instance.getPlaylistTracks(playlist.id);
-            if (tracks.isNotEmpty) {
-              ref.read(recentTracksProvider.notifier).setTracks(tracks);
-              ref.read(audioServiceProvider.notifier).playTrack(tracks.first);
-              return;
-            }
-          }
-
-          // Fallback: play existing tracks
-          final currentTracks = ref.read(recentTracksProvider);
-          if (currentTracks.isNotEmpty) {
-            ref.read(audioServiceProvider.notifier).playTrack(currentTracks.first);
-          }
+          await ref.read(userPlaylistsProvider.notifier).selectPlaylist(
+            playlist,
+            autoPlay: false,
+            switchToLibrary: true,
+          );
         },
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
+            border: isSelected
+                ? Border.all(color: AppTheme.accentViolet, width: 2)
+                : null,
             boxShadow: [
               BoxShadow(
-                color: AppTheme.accentViolet.withOpacity(0.2),
+                color: isSelected
+                    ? AppTheme.accentViolet.withOpacity(0.4)
+                    : AppTheme.accentViolet.withOpacity(0.15),
                 blurRadius: 16,
                 offset: const Offset(0, 8),
               ),
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(22),
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -117,7 +140,7 @@ class _PlaylistCard extends ConsumerWidget {
                         Colors.transparent,
                         Colors.black.withOpacity(0.85),
                       ],
-                      stops: const [0.4, 1.0],
+                      stops: const [0.35, 1.0],
                     ),
                   ),
                 ),
@@ -141,16 +164,19 @@ class _PlaylistCard extends ConsumerWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
                       Row(
                         children: [
-                          _SourceBadge(source: playlist.source),
+                          PlaylistSourceBadge(source: playlist.source),
                           const SizedBox(width: 6),
-                          Text(
-                            '${playlist.trackCount} tracks',
-                            style: const TextStyle(
-                              color: Colors.white54,
-                              fontSize: 11,
+                          Expanded(
+                            child: Text(
+                              '${playlist.trackCount} temas',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 11,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
@@ -158,7 +184,7 @@ class _PlaylistCard extends ConsumerWidget {
                     ],
                   ),
                 ),
-                // Play button overlay
+                // Play indicator overlay
                 Positioned(
                   top: 12,
                   right: 12,
@@ -166,7 +192,9 @@ class _PlaylistCard extends ConsumerWidget {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: AppTheme.accentViolet.withOpacity(0.9),
+                      color: isSelected
+                          ? AppTheme.accentPink
+                          : AppTheme.accentViolet.withOpacity(0.9),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.play_arrow_rounded,
@@ -182,27 +210,35 @@ class _PlaylistCard extends ConsumerWidget {
   }
 }
 
-class _SourceBadge extends StatelessWidget {
-  const _SourceBadge({required this.source});
+class PlaylistSourceBadge extends StatelessWidget {
+  const PlaylistSourceBadge({super.key, required this.source});
   final String source;
 
   @override
   Widget build(BuildContext context) {
-    final (color, label) = switch (source) {
+    final (color, label) = switch (source.toLowerCase()) {
       'deezer'  => (const Color(0xFFEF4444), 'Deezer'),
       'amazon'  => (const Color(0xFFF97316), 'Amazon'),
-      _         => (AppTheme.accentViolet, 'Local'),
+      'spotify' => (const Color(0xFF1DB954), 'Spotify'),
+      'tidal'   => (const Color(0xFF00FFFF), 'Tidal'),
+      _         => (AppTheme.accentViolet, 'Música'),
     };
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.3),
+        color: color.withOpacity(0.25),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: color.withOpacity(0.5), width: 0.5),
       ),
-      child: Text(label,
-          style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w700)),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }

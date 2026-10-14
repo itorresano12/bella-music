@@ -502,6 +502,184 @@ class _KioskUnlockButtonState extends State<_KioskUnlockButton>
   }
 }
 
+// ─── Modal: Todas las Playlists ───────────────────────────────────────────────
+
+void _openAllPlaylistsModal(BuildContext context, WidgetRef ref) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (ctx) => Consumer(
+      builder: (context, ref, _) {
+        final playlists = ref.watch(userPlaylistsProvider);
+        final selected = ref.watch(selectedPlaylistProvider);
+        final isLoading = ref.watch(isPlaylistLoadingProvider);
+
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.75,
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          decoration: BoxDecoration(
+            color: const Color(0xFF161616),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            border: Border.all(
+              color: AppTheme.accentViolet.withOpacity(0.3),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Todas tus Playlists',
+                        style: TextStyle(
+                          color: AppTheme.onSurface,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 18,
+                        ),
+                      ),
+                      Text(
+                        '${playlists.length} listas disponibles • Audio Completo HQ',
+                        style: const TextStyle(
+                          color: AppTheme.onSurfaceSub,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (isLoading)
+                    const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: AppTheme.accentViolet,
+                      ),
+                    )
+                  else
+                    IconButton(
+                      icon: const Icon(Icons.refresh_rounded, color: AppTheme.accentViolet, size: 24),
+                      tooltip: 'Actualizar listas',
+                      onPressed: () {
+                        ref.read(userPlaylistsProvider.notifier).fetchUserPlaylists();
+                      },
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Divider(color: Colors.white12, height: 1),
+              const SizedBox(height: 8),
+              if (playlists.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40),
+                  child: Center(
+                    child: Text(
+                      'No se encontraron playlists del usuario.\nInicia sesión en Ajustes para sincronizar tus listas de Deezer o Amazon Music.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 13, height: 1.4),
+                    ),
+                  ),
+                )
+              else
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: playlists.length,
+                    separatorBuilder: (_, __) => const Divider(color: Colors.white10, height: 10),
+                    itemBuilder: (context, index) {
+                      final pl = playlists[index];
+                      final isSelected = selected?.id == pl.id;
+
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.network(
+                            pl.coverUrl,
+                            width: 50,
+                            height: 50,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              width: 50,
+                              height: 50,
+                              color: AppTheme.surfaceLight,
+                              child: const Icon(Icons.album_rounded, color: AppTheme.accentViolet, size: 28),
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          pl.name,
+                          style: TextStyle(
+                            color: isSelected ? AppTheme.accentPink : Colors.white,
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Row(
+                            children: [
+                              PlaylistSourceBadge(source: pl.source),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${pl.trackCount} canciones',
+                                style: const TextStyle(color: AppTheme.onSurfaceSub, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        trailing: isSelected
+                            ? const Icon(Icons.check_circle_rounded, color: AppTheme.accentPink, size: 24)
+                            : const Icon(Icons.arrow_forward_ios_rounded, color: AppTheme.onSurfaceSub, size: 16),
+                        onTap: () async {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              duration: const Duration(seconds: 1),
+                              backgroundColor: const Color(0xFF1E293B),
+                              content: Text('Cargando catálogo completo de "${pl.name}"...'),
+                            ),
+                          );
+                          await ref.read(userPlaylistsProvider.notifier).selectPlaylist(
+                            pl,
+                            autoPlay: false,
+                            switchToLibrary: true,
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+
 // ─── Tab 0: Inicio ────────────────────────────────────────────────────────────
 
 class _HomeTab extends ConsumerWidget {
@@ -529,8 +707,7 @@ class _HomeTab extends ConsumerWidget {
                 Text('Tus Playlists',
                     style: Theme.of(context).textTheme.titleLarge),
                 TextButton(
-                  onPressed: () =>
-                      ref.read(currentTabProvider.notifier).state = 2,
+                  onPressed: () => _openAllPlaylistsModal(context, ref),
                   child: const Text('Ver todo',
                       style: TextStyle(color: AppTheme.accentViolet)),
                 ),
@@ -844,12 +1021,14 @@ class _LibraryTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final playlists     = ref.watch(playlistsProvider);
-    final tracks        = ref.watch(recentTracksProvider);
-    final audioState    = ref.watch(audioServiceProvider);
-    final audioNotifier = ref.read(audioServiceProvider.notifier);
+    final playlists       = ref.watch(userPlaylistsProvider);
+    final selectedPlaylist= ref.watch(selectedPlaylistProvider);
+    final isLoading       = ref.watch(isPlaylistLoadingProvider);
+    final tracks          = ref.watch(recentTracksProvider);
+    final audioState      = ref.watch(audioServiceProvider);
+    final audioNotifier   = ref.read(audioServiceProvider.notifier);
 
-    final featured = playlists.isNotEmpty ? playlists.first : null;
+    final activePlaylist  = selectedPlaylist ?? (playlists.isNotEmpty ? playlists.first : null);
 
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
@@ -868,46 +1047,57 @@ class _LibraryTab extends ConsumerWidget {
                   children: [
                     Text('Tu Librería', style: Theme.of(context).textTheme.titleLarge),
                     Text(
-                      '${tracks.length} canciones descargadas • Acceso Premium',
+                      isLoading
+                          ? 'Descargando canciones de la lista…'
+                          : '${tracks.length} canciones cargadas • Acceso Premium HQ',
                       style: const TextStyle(color: AppTheme.onSurfaceSub, fontSize: 13),
                     ),
                   ],
                 ),
                 IconButton(
-                  tooltip: 'Sincronizar 321 canciones',
-                  icon: const Icon(Icons.sync_rounded, color: AppTheme.accentViolet),
-                  onPressed: () async {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        backgroundColor: Color(0xFF1E293B),
-                        content: Text('Descargando catálogo completo de Tasty Santander (321 tracks)...'),
-                      ),
-                    );
-                    final pl = await DeezerService.instance.searchPlaylists('Tasty Santander');
-                    if (pl.isNotEmpty) {
-                      ref.read(playlistsProvider.notifier).setPlaylists(pl);
-                      final allTracks = await DeezerService.instance.getAllPlaylistTracks(pl.first.id);
-                      if (allTracks.isNotEmpty) {
-                        ref.read(recentTracksProvider.notifier).setTracks(allTracks);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              backgroundColor: const Color(0xFF1E293B),
-                              content: Text('Sincronizadas ${allTracks.length} canciones con éxito.'),
-                            ),
-                          );
-                        }
-                      }
-                    }
-                  },
+                  tooltip: 'Sincronizar canciones',
+                  icon: isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.accentViolet),
+                        )
+                      : const Icon(Icons.sync_rounded, color: AppTheme.accentViolet),
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          if (activePlaylist != null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                backgroundColor: const Color(0xFF1E293B),
+                                content: Text('Sincronizando catálogo completo de "${activePlaylist.name}"...'),
+                              ),
+                            );
+                            await ref.read(userPlaylistsProvider.notifier).selectPlaylist(
+                              activePlaylist,
+                              autoPlay: false,
+                              switchToLibrary: false,
+                            );
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  backgroundColor: const Color(0xFF1E293B),
+                                  content: Text('Sincronizadas ${ref.read(recentTracksProvider).length} canciones con éxito.'),
+                                ),
+                              );
+                            }
+                          } else {
+                            await ref.read(userPlaylistsProvider.notifier).fetchUserPlaylists();
+                          }
+                        },
                 ),
               ],
             ),
           ),
         ),
 
-        // Banner Playlist Destacada: Tasty Santander
-        if (featured != null)
+        // Banner Playlist Activa
+        if (activePlaylist != null)
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -935,7 +1125,7 @@ class _LibraryTab extends ConsumerWidget {
                         ClipRRect(
                           borderRadius: BorderRadius.circular(16),
                           child: Image.network(
-                            featured.coverUrl,
+                            activePlaylist.coverUrl,
                             width: 80,
                             height: 80,
                             fit: BoxFit.cover,
@@ -959,9 +1149,9 @@ class _LibraryTab extends ConsumerWidget {
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(color: AppTheme.accentPink.withOpacity(0.4)),
                                 ),
-                                child: const Text(
-                                  'STREAMING OFICIAL DEEZER • HQ 320K',
-                                  style: TextStyle(
+                                child: Text(
+                                  'STREAMING OFICIAL ${activePlaylist.source.toUpperCase()} • HQ 320K',
+                                  style: const TextStyle(
                                     color: AppTheme.accentPink,
                                     fontSize: 9,
                                     fontWeight: FontWeight.w700,
@@ -971,7 +1161,7 @@ class _LibraryTab extends ConsumerWidget {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                featured.name,
+                                activePlaylist.name,
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
@@ -982,7 +1172,9 @@ class _LibraryTab extends ConsumerWidget {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                '${tracks.length} Pistas completas sin interrupciones',
+                                isLoading
+                                    ? 'Cargando pistas…'
+                                    : '${tracks.length} Pistas completas sin interrupciones',
                                 style: const TextStyle(
                                   color: AppTheme.onSurfaceSub,
                                   fontSize: 12,
@@ -1090,18 +1282,38 @@ class _LibraryTab extends ConsumerWidget {
           ),
         ),
 
-        // Lista vertical estilizada de las 321 pistas
-        if (tracks.isEmpty)
+        // Lista vertical estilizada de las pistas
+        if (isLoading)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 60),
+              child: Center(
+                child: Column(
+                  children: [
+                    const CircularProgressIndicator(color: AppTheme.accentViolet),
+                    const SizedBox(height: 16),
+                    Text(
+                      activePlaylist != null
+                          ? 'Descargando canciones de "${activePlaylist.name}"...'
+                          : 'Cargando playlist...',
+                      style: const TextStyle(color: AppTheme.onSurfaceSub, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )
+        else if (tracks.isEmpty)
           const SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: 60),
               child: Center(
                 child: Column(
                   children: [
-                    CircularProgressIndicator(color: AppTheme.accentViolet),
+                    Icon(Icons.queue_music_rounded, color: AppTheme.onSurfaceSub, size: 48),
                     SizedBox(height: 16),
                     Text(
-                      'Descargando las 321 canciones de Tasty Santander...',
+                      'No hay canciones disponibles en esta playlist.',
                       style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 13),
                     ),
                   ],
