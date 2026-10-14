@@ -9,40 +9,20 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
-import 'package:pointycastle/export.dart';
 import 'package:bella_music/services/secure_storage_service.dart';
 import 'package:bella_music/utils/network_validator.dart';
 import 'package:logger/logger.dart';
 
-// ─── Blowfish Decryptor (PointyCastle con fallback Pure Dart) ─────────────────
+// ─── Blowfish Decryptor (Pure Dart CBC Engine) ───────────────────────────────
 
 class _BlowfishDecryptor {
-  static const List<int> _iv = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07];
-
   /// Descifra un bloque exacto de 2048 bytes usando Blowfish-CBC con IV reiniciado
   static Uint8List decryptChunk(Uint8List encryptedChunk, List<int> keyBytes) {
-    try {
-      final cipher = CBCBlockCipher(BlowfishEngine());
-      final params = ParametersWithIV(
-        KeyParameter(Uint8List.fromList(keyBytes)),
-        Uint8List.fromList(_iv),
-      );
-      cipher.init(false, params); // false = decrypt
-
-      final decrypted = Uint8List(encryptedChunk.length);
-      const blockSize = 8;
-      for (int offset = 0; offset + blockSize <= encryptedChunk.length; offset += blockSize) {
-        cipher.processBlock(encryptedChunk, offset, decrypted, offset);
-      }
-      return decrypted;
-    } catch (_) {
-      // Fallback a pure Dart si PointyCastle no estuviera disponible
-      return _BlowfishCBC(keyBytes).decryptChunk(encryptedChunk);
-    }
+    return _BlowfishCBC(keyBytes).decryptChunk(encryptedChunk);
   }
 }
 
-// ─── Pure Dart Blowfish CBC (Fallback Matemático) ─────────────────────────────
+// ─── Pure Dart Blowfish CBC ───────────────────────────────────────────────────
 
 class _BlowfishCBC {
   static const List<int> _iv = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07];
