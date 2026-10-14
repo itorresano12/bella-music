@@ -94,7 +94,7 @@ class BellaAudioHandler extends BaseAudioHandler with SeekHandler {
     _isWifiMode = speakerIp != null;
     if (_isWifiMode) {
       androidPlaybackInfo.add(
-        const RemoteAndroidPlaybackInfo(
+        RemoteAndroidPlaybackInfo(
           volumeControlType: AndroidVolumeControlType.relative,
           maxVolume: 100,
           volume: 50,
@@ -113,7 +113,7 @@ class BellaAudioHandler extends BaseAudioHandler with SeekHandler {
   }
 
   void _setLocalAudioSession() {
-    androidPlaybackInfo.add(const LocalAndroidPlaybackInfo());
+    androidPlaybackInfo.add(LocalAndroidPlaybackInfo());
   }
 
   // ─── Hardware Volume Buttons Interception (Physical Xiaomi Buttons) ──────────
