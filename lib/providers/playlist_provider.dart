@@ -47,8 +47,7 @@ class UserPlaylistsNotifier extends StateNotifier<List<Playlist>> {
           await selectPlaylist(playlists.first, autoPlay: false, switchToLibrary: false);
         }
       } else {
-        _logger.d('Playlists: Sin listas personales de usuario aún, sincronizando recomendadas.');
-        await _ref.read(featuredPlaylistsProvider.notifier).fetchFeaturedPlaylists(serviceId: serviceId);
+        _logger.d('Playlists: Sin listas personales de usuario aún. No se cargan listas de relleno.');
       }
     } catch (e) {
       _logger.e('Error al obtener playlists de usuario: $e');
@@ -72,7 +71,7 @@ class UserPlaylistsNotifier extends StateNotifier<List<Playlist>> {
 
       if (tracks.isNotEmpty) {
         _ref.read(recentTracksProvider.notifier).setTracks(tracks);
-        _ref.read(currentTrackProvider.notifier).state = tracks.first;
+        _ref.read(currentTrackProvider.notifier).setTrack(tracks.first);
 
         if (autoPlay) {
           await _ref.read(audioServiceProvider.notifier).playTrack(tracks.first);
@@ -104,15 +103,13 @@ final userPlaylistsProvider =
 // ─── Featured & Recommended Playlists Notifier ────────────────────────────────
 
 class FeaturedPlaylistsNotifier extends StateNotifier<List<Playlist>> {
-  FeaturedPlaylistsNotifier(this._ref) : super(const []) {
-    fetchFeaturedPlaylists();
-  }
+  FeaturedPlaylistsNotifier(this._ref) : super(const []);
 
   final Ref _ref;
   final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 
   Future<void> fetchFeaturedPlaylists({String? serviceId}) async {
-    _logger.i('Playlists: Consultando catálogo de recomendadas y charts oficiales…');
+    _logger.i('Playlists: Consultando catálogo de recomendadas bajo petición…');
     try {
       final service = serviceId != null
           ? MusicServiceRegistry.get(serviceId)
@@ -122,15 +119,6 @@ class FeaturedPlaylistsNotifier extends StateNotifier<List<Playlist>> {
       if (playlists.isNotEmpty) {
         state = playlists;
         _logger.i('Playlists: ${playlists.length} playlists recomendadas de ${service.displayName}.');
-
-        // Si aún no hay ninguna seleccionada y el usuario no tiene personales, activar la primera
-        if (_ref.read(selectedPlaylistProvider) == null && _ref.read(userPlaylistsProvider).isEmpty) {
-          await _ref.read(userPlaylistsProvider.notifier).selectPlaylist(
-            playlists.first,
-            autoPlay: false,
-            switchToLibrary: false,
-          );
-        }
       }
     } catch (e) {
       _logger.e('Error al obtener playlists recomendadas: $e');
@@ -163,12 +151,32 @@ final recentTracksProvider =
   (ref) => RecentTracksNotifier(),
 );
 
-// ─── Currently Selected Track ───────────────────────────────────────────────
+// ─── Currently Selected Track (independent StateNotifier — not derived) ───────
+// Using StateNotifier instead of a derived StateProvider prevents reactivity
+// breakage when audio_service.dart sets the resolved track directly.
 
-final currentTrackProvider = StateProvider<Track?>((ref) {
-  final tracks = ref.watch(recentTracksProvider);
-  return tracks.isNotEmpty ? tracks.first : null;
-});
+class CurrentTrackNotifier extends StateNotifier<Track?> {
+  CurrentTrackNotifier() : super(null);
+
+  void setTrack(Track? track) {
+    state = track;
+  }
+}
+
+final currentTrackProvider =
+    StateNotifierProvider<CurrentTrackNotifier, Track?>(
+  (ref) {
+    final notifier = CurrentTrackNotifier();
+    // Seed with the first track from recentTracksProvider when it loads
+    ref.listen<List<Track>>(recentTracksProvider, (prev, next) {
+      if (next.isNotEmpty && notifier.state == null) {
+        notifier.setTrack(next.first);
+      }
+    });
+    return notifier;
+  },
+);
+
 
 // ─── Navigation Tab Index (0: Inicio, 1: Buscar, 2: Librería, 3: Ajustes) ──
 
@@ -264,7 +272,6 @@ class ServicesNotifier extends StateNotifier<List<Map<String, String>>> {
 
     if (status == 'connected') {
       _ref.read(userPlaylistsProvider.notifier).fetchUserPlaylists(serviceId: name);
-      _ref.read(featuredPlaylistsProvider.notifier).fetchFeaturedPlaylists(serviceId: name);
     }
   }
 

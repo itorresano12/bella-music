@@ -9,6 +9,7 @@ import 'package:bella_music/theme/app_theme.dart';
 import 'package:bella_music/screens/home_screen.dart';
 import 'package:bella_music/services/discovery_service.dart';
 import 'package:bella_music/services/audio_service.dart';
+import 'package:bella_music/services/blowfish_decrypt_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,6 +25,10 @@ void main() async {
       androidNotificationIcon: 'mipmap/ic_launcher',
     ),
   );
+
+  // Start the local Blowfish decryption proxy for full-length Deezer audio
+  // This must start before any track is played so the URL is ready
+  await BlowfishDecryptService.instance.startServer();
 
   // Lock orientation to portrait for the premium experience
   await SystemChrome.setPreferredOrientations([

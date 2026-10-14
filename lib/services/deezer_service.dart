@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:bella_music/models/playlist_model.dart';
 import 'package:bella_music/services/secure_storage_service.dart';
+import 'package:bella_music/services/blowfish_decrypt_service.dart';
 import 'package:logger/logger.dart';
 
 class DeezerSyncResult {
@@ -47,15 +48,48 @@ class DeezerService {
 
     final Map<String, Playlist> foundPlaylists = {};
 
-    // 1. Si no tenemos aún USER_ID, consultamos gw-light.php con la cookie arl
-    if ((userId == null || userId.isEmpty || userId == '0') && activeToken != null) {
+    // 0. Revisar si hay playlists sincronizadas en Keystore (extraídas directamente del WebView autenticado)
+    final cachedJson = await SecureStorageService.instance.getDeezerPlaylists();
+    if (cachedJson != null && cachedJson.isNotEmpty) {
+      try {
+        final List list = jsonDecode(cachedJson);
+        for (final item in list) {
+          final id = item['id']?.toString() ?? '';
+          if (id.isNotEmpty) {
+            foundPlaylists[id] = Playlist(
+              id: id,
+              name: item['name']?.toString() ?? 'Playlist Deezer',
+              coverUrl: (item['coverUrl'] != null && item['coverUrl'].toString().isNotEmpty)
+                  ? item['coverUrl'].toString()
+                  : 'https://picsum.photos/seed/$id/400/400',
+              trackCount: (item['trackCount'] as num?)?.toInt() ?? 0,
+              source: 'deezer',
+            );
+          }
+        }
+        if (foundPlaylists.isNotEmpty) {
+          _logger.i('Deezer: ¡${foundPlaylists.length} playlists cargadas desde la sincronización de Keystore!');
+          return foundPlaylists.values.toList();
+        }
+      } catch (e) {
+        _logger.w('Deezer: Error decodificando playlists de Keystore: $e');
+      }
+    }
+
+    final savedCookies = await SecureStorageService.instance.getDeezerCookies();
+    final cookieHeader = (savedCookies != null && savedCookies.isNotEmpty)
+        ? savedCookies
+        : (activeToken != null ? 'arl=$activeToken' : '');
+
+    // 1. Si no tenemos aún USER_ID, consultamos gw-light.php con las cookies de sesión
+    if ((userId == null || userId.isEmpty || userId == '0') && cookieHeader.isNotEmpty) {
       try {
         _logger.i('Deezer: Obteniendo USER_ID de sesión vía gw-light.php…');
         final gwUri = Uri.parse('https://www.deezer.com/ajax/gw-light.php?method=deezer.getUserData&input=3&api_version=1.0&api_token=');
         final gwRes = await http.post(
           gwUri,
           headers: {
-            'Cookie': 'arl=$activeToken',
+            'Cookie': cookieHeader,
             'Content-Type': 'application/json',
             'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36',
           },
@@ -123,7 +157,7 @@ class DeezerService {
           final profileRes = await http.post(
             profileUri,
             headers: {
-              'Cookie': 'arl=$activeToken',
+              'Cookie': cookieHeader,
               'Content-Type': 'application/json',
               'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36',
             },
@@ -239,24 +273,34 @@ class DeezerService {
     return searchPlaylists('Top Hits', token: token);
   }
 
-  /// Resolves the authenticated full-length stream URL (320 kbps / FLAC).
-  /// Strictly rejects 30-second preview CDN URLs.
+  /// Resolves the authenticated full-length stream URL.
+  /// Routes through the local Blowfish proxy when active (full-length audio, no 30s limit).
+  /// Falls back to preview URL (30s) only if the proxy is not running.
   Future<String> resolveFullStreamUrl(Track track, {String? token}) async {
-    final activeToken = token ?? await SecureStorageService.instance.getDeezerToken();
+    // Primary: Blowfish local proxy (full audio, descifrado al vuelo)
+    try {
+      // Import inline to avoid circular dependency issues
+      // BlowfishDecryptService is a singleton already started in main.dart
+      final proxy = BlowfishDecryptService.instance;
+      if (proxy.isRunning && track.id.isNotEmpty) {
+        return proxy.localUrl(track.id);
+      }
+    } catch (_) {}
 
-    // 1. NUNCA utilizar la URL de preview (cdns-preview-*.dzcdn.net)
-    if (activeToken != null && activeToken.isNotEmpty) {
-      final fullUrl = '$_baseUrl/track/${track.id}/stream?access_token=$activeToken';
-      _logger.d('Deezer HQ Stream: Resuelta URL comercial 320 kbps para "${track.title}".');
-      return fullUrl;
-    }
-
-    if (!track.streamUrl.contains('cdns-preview-') && track.streamUrl.isNotEmpty) {
+    // Fallback: preview URL (30s) — solo si el proxy no está disponible
+    if (track.streamUrl.isNotEmpty && !track.streamUrl.contains('/stream?access_token=')) {
       return track.streamUrl;
     }
 
+    // Último recurso: URL directa (puede fallar con 403 o devolver Blowfish cifrado)
+    _logger.w('Deezer: Proxy no activo y sin URL de preview — usando endpoint /stream (puede fallar).');
+    final activeToken = token ?? await SecureStorageService.instance.getDeezerToken();
+    if (activeToken != null && activeToken.isNotEmpty) {
+      return '$_baseUrl/track/${track.id}/stream?access_token=$activeToken';
+    }
     return '$_baseUrl/track/${track.id}/stream';
   }
+
 
   /// Searches playlists by query string (e.g. "Tasty Santander")
   Future<List<Playlist>> searchPlaylists(String query, {String? token}) async {

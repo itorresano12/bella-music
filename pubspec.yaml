@@ -19,6 +19,8 @@ dependencies:
 
   # Networking & Web Auth
   http: ^1.2.1
+  crypto: ^3.0.3
+  pointycastle: ^3.7.4
   webview_flutter: ^4.10.0
 
   # Secure Storage (Keystore/Keychain hardware encryption)

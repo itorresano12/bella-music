@@ -36,6 +36,12 @@ class _ServicesGridState extends ConsumerState<ServicesGrid> {
     _checkSavedTokens();
   }
 
+  @override
+  void didUpdateWidget(ServicesGrid oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _checkSavedTokens();
+  }
+
   Future<void> _checkSavedTokens() async {
     final deezerToken = await SecureStorageService.instance.getDeezerToken();
     final amazonToken = await SecureStorageService.instance.getAmazonToken();
@@ -77,7 +83,7 @@ class _ServicesGridState extends ConsumerState<ServicesGrid> {
         final s = widget.services[i];
         final name = s['name'] ?? '';
         final key = _getServiceKey(name);
-        final isConnected = _connectedServices[key] ?? true;
+        final isConnected = (_connectedServices[key] ?? false) || (s['status'] == 'connected');
 
         return GradientCard(
           onTap: () async {

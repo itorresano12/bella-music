@@ -32,15 +32,18 @@ class SecureStorageService {
   );
 
   // ─── Key Constants ────────────────────────────────────────────────────────
-  static const String _kDeezerToken      = 'bella_deezer_token';
-  static const String _kDeezerUserId     = 'bella_deezer_user_id';
-  static const String _kDeezerApiToken   = 'bella_deezer_api_token';
-  static const String _kAmazonToken      = 'bella_amazon_token';
-  static const String _kAmazonPlaylists  = 'bella_amazon_playlists';
-  static const String _kSpotifyToken     = 'bella_spotify_token';
-  static const String _kTidalToken       = 'bella_tidal_token';
-  static const String _kDeviceKey        = 'bella_device_key';
-  static const String _kLastSpeakerIp    = 'bella_last_speaker_ip';
+  static const String _kDeezerToken        = 'bella_deezer_token';
+  static const String _kDeezerUserId       = 'bella_deezer_user_id';
+  static const String _kDeezerApiToken     = 'bella_deezer_api_token';
+  static const String _kDeezerLicenseToken = 'bella_deezer_license_token';
+  static const String _kDeezerPlaylists    = 'bella_deezer_playlists';
+  static const String _kDeezerCookies      = 'bella_deezer_cookies';
+  static const String _kAmazonToken        = 'bella_amazon_token';
+  static const String _kAmazonPlaylists    = 'bella_amazon_playlists';
+  static const String _kSpotifyToken       = 'bella_spotify_token';
+  static const String _kTidalToken         = 'bella_tidal_token';
+  static const String _kDeviceKey          = 'bella_device_key';
+  static const String _kLastSpeakerIp      = 'bella_last_speaker_ip';
 
   // ─── Deezer ──────────────────────────────────────────────────────────────
   Future<void> saveDeezerToken(String token) async {
@@ -63,10 +66,33 @@ class SecureStorageService {
 
   Future<String?> getDeezerApiToken() => _storage.read(key: _kDeezerApiToken);
 
+  Future<void> saveDeezerLicenseToken(String licenseToken) async {
+    await _storage.write(key: _kDeezerLicenseToken, value: licenseToken);
+    _logger.i('Deezer license_token saved to secure storage.');
+  }
+
+  Future<String?> getDeezerLicenseToken() => _storage.read(key: _kDeezerLicenseToken);
+
+  Future<void> saveDeezerPlaylists(String jsonStr) async {
+    await _storage.write(key: _kDeezerPlaylists, value: jsonStr);
+    _logger.i('Deezer playlists cache saved to secure storage.');
+  }
+
+  Future<String?> getDeezerPlaylists() => _storage.read(key: _kDeezerPlaylists);
+
+  Future<void> saveDeezerCookies(String cookies) async {
+    await _storage.write(key: _kDeezerCookies, value: cookies);
+  }
+
+  Future<String?> getDeezerCookies() => _storage.read(key: _kDeezerCookies);
+
   Future<void> clearDeezer() async {
     await _storage.delete(key: _kDeezerToken);
     await _storage.delete(key: _kDeezerUserId);
     await _storage.delete(key: _kDeezerApiToken);
+    await _storage.delete(key: _kDeezerLicenseToken);
+    await _storage.delete(key: _kDeezerPlaylists);
+    await _storage.delete(key: _kDeezerCookies);
     _logger.i('Deezer session cleared from secure storage.');
   }
 

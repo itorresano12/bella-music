@@ -524,15 +524,12 @@ class _AllPlaylistsModalContent extends ConsumerStatefulWidget {
 
 class _AllPlaylistsModalContentState
     extends ConsumerState<_AllPlaylistsModalContent> {
-  int _activeCategoryIndex = 0; // 0: Recomendadas, 1: Mis Playlists
+  int _activeCategoryIndex = 1; // 0: Recomendadas, 1: Mis Playlists (default)
 
   @override
   void initState() {
     super.initState();
-    final userPlaylists = ref.read(userPlaylistsProvider);
-    if (userPlaylists.isNotEmpty) {
-      _activeCategoryIndex = 1;
-    }
+    _activeCategoryIndex = 1;
   }
 
   void _showImportDialog(BuildContext context) {
@@ -716,7 +713,7 @@ class _AllPlaylistsModalContentState
           ),
           const SizedBox(height: 14),
 
-          // Segmented Category Tabs: [✨ Recomendadas] | [👤 Mis Playlists]
+          // Segmented Category Tabs: [👤 Mis Playlists] | [✨ Recomendadas]
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
@@ -725,28 +722,6 @@ class _AllPlaylistsModalContentState
             ),
             child: Row(
               children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _activeCategoryIndex = 0),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      decoration: BoxDecoration(
-                        color: _activeCategoryIndex == 0 ? AppTheme.accentViolet : Colors.transparent,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Center(
-                        child: Text(
-                          '✨ Recomendadas (${featuredPlaylists.length})',
-                          style: TextStyle(
-                            color: _activeCategoryIndex == 0 ? Colors.white : AppTheme.onSurfaceSub,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
                 Expanded(
                   child: GestureDetector(
                     onTap: () => setState(() => _activeCategoryIndex = 1),
@@ -761,6 +736,33 @@ class _AllPlaylistsModalContentState
                           '👤 Mis Playlists (${userPlaylists.length})',
                           style: TextStyle(
                             color: _activeCategoryIndex == 1 ? Colors.white : AppTheme.onSurfaceSub,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() => _activeCategoryIndex = 0);
+                      if (featuredPlaylists.isEmpty) {
+                        ref.read(featuredPlaylistsProvider.notifier).fetchFeaturedPlaylists();
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _activeCategoryIndex == 0 ? AppTheme.accentViolet : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '✨ Recomendadas (${featuredPlaylists.length})',
+                          style: TextStyle(
+                            color: _activeCategoryIndex == 0 ? Colors.white : AppTheme.onSurfaceSub,
                             fontWeight: FontWeight.w600,
                             fontSize: 12,
                           ),
@@ -919,7 +921,7 @@ class _HomeTab extends ConsumerWidget {
       slivers: [
         const SliverToBoxAdapter(child: SizedBox(height: 100)),
 
-        // Cuando el usuario tiene listas personales, mostrar primero "Mis Playlists"
+        // Si el usuario tiene listas personales sincronizadas, mostrar "Mis Playlists"
         if (userPlaylists.isNotEmpty) ...[
           SliverToBoxAdapter(
             child: Padding(
@@ -956,53 +958,53 @@ class _HomeTab extends ConsumerWidget {
                 .animate()
                 .fadeIn(delay: 150.ms),
           ),
-
-          // Playlists Recomendadas & Tendencias a continuación
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Recomendadas y Charts',
-                      style: Theme.of(context).textTheme.titleLarge),
-                  TextButton(
-                    onPressed: () => _openAllPlaylistsModal(context, ref),
-                    child: const Text('Ver catálogo',
-                        style: TextStyle(color: AppTheme.accentViolet)),
-                  ),
-                ],
-              ),
-            ).animate().fadeIn(delay: 180.ms),
-          ),
-          SliverToBoxAdapter(
-            child: PlaylistCarousel(playlists: featuredPlaylists)
-                .animate()
-                .fadeIn(delay: 200.ms),
-          ),
         ] else ...[
-          // Si aún no hay listas de usuario, mostrar recomendaciones
+          // Estado limpio sin listas de relleno: invita a conectar cuentas en Servicios Conectados
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Recomendadas y Charts',
-                      style: Theme.of(context).textTheme.titleLarge),
-                  TextButton(
-                    onPressed: () => _openAllPlaylistsModal(context, ref),
-                    child: const Text('Ver catálogo',
-                        style: TextStyle(color: AppTheme.accentViolet)),
-                  ),
-                ],
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: GlassContainer(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppTheme.accentViolet.withOpacity(0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.library_music_rounded,
+                          color: AppTheme.accentViolet, size: 28),
+                    ),
+                    const SizedBox(width: 16),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Biblioteca Personal Vacía',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Conecta tu cuenta de Deezer o Amazon Music abajo para sincronizar tus playlists y reproducir audio HQ en el local.',
+                            style: TextStyle(
+                              color: AppTheme.onSurfaceSub,
+                              fontSize: 12,
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ).animate().fadeIn(delay: 100.ms),
-          ),
-          SliverToBoxAdapter(
-            child: PlaylistCarousel(
-              playlists: featuredPlaylists.isNotEmpty ? featuredPlaylists : userPlaylists,
-            ).animate().fadeIn(delay: 150.ms),
           ),
         ],
 

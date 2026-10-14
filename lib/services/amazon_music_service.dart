@@ -143,6 +143,17 @@ class AmazonMusicService implements BaseMusicService {
 
   @override
   Future<String> resolveFullStreamUrl(Track track) async {
+    if (RegExp(r'^\d+$').hasMatch(track.id)) {
+      return DeezerService.instance.resolveFullStreamUrl(track);
+    }
+    // Buscar por título y artista en Deezer para obtener el SNG_ID numérico y stream completo
+    final query = '${track.title} ${track.artist}'.trim();
+    if (query.isNotEmpty) {
+      final results = await DeezerService.instance.searchTracks(query);
+      if (results.isNotEmpty) {
+        return DeezerService.instance.resolveFullStreamUrl(results.first);
+      }
+    }
     return DeezerService.instance.resolveFullStreamUrl(track);
   }
 

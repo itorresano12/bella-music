@@ -21,6 +21,7 @@ import 'package:bella_music/services/upnp_service.dart';
 import 'package:bella_music/services/discovery_service.dart';
 import 'package:bella_music/services/linkplay_bridge_service.dart';
 import 'package:bella_music/services/emergency_audio_service.dart';
+import 'package:bella_music/services/blowfish_decrypt_service.dart';
 import 'package:bella_music/services/secure_storage_service.dart';
 import 'package:bella_music/services/base_music_service.dart';
 import 'package:bella_music/utils/network_validator.dart';
@@ -299,31 +300,41 @@ class AudioNotifier extends StateNotifier<AudioState> {
   // ─── Play a track ──────────────────────────────────────────────────────────
 
   Future<void> playTrack(Track track) async {
-    // 1. Resolución obligatoria de URL completa HQ sin límite de preview
+    // 1. Resolución de URL: Para Deezer, usar el proxy Blowfish local si el servidor está activo.
+    //    Para otros servicios, delegar al resolver del servicio correspondiente.
     Track resolvedTrack = track;
     try {
-      final service = MusicServiceRegistry.get(track.source);
-      final fullUrl = await service.resolveFullStreamUrl(track);
-      if (fullUrl.isNotEmpty) {
-        resolvedTrack = track.copyWith(streamUrl: fullUrl, isFullLength: true);
+      if (track.source == 'deezer' || track.source == 'amazon' ||
+          track.source == 'spotify' || track.source == 'tidal') {
+        // Intentar resolver vía proxy Blowfish (audio completo, sin límite de 30s)
+        if (BlowfishDecryptService.instance.isRunning) {
+          // La URL local es reproducible por just_audio y por Linkplay WCS50 vía HTTP
+          // El proxy descifra el Blowfish al vuelo en el momento de la petición
+          final localUrl = BlowfishDecryptService.instance.localUrl(track.id);
+          resolvedTrack = track.copyWith(
+            streamUrl: localUrl,
+            isFullLength: true,
+          );
+          _logger.i('Audio: Resuelto vía proxy Blowfish local para "${track.title}" → $localUrl');
+        } else {
+          // Fallback: intentar resolver vía servicio (puede ser preview si no hay sesión)
+          final service = MusicServiceRegistry.get(track.source);
+          final fullUrl = await service.resolveFullStreamUrl(track);
+          if (fullUrl.isNotEmpty && !fullUrl.contains('cdns-preview-')) {
+            resolvedTrack = track.copyWith(streamUrl: fullUrl, isFullLength: true);
+          }
+          _logger.w('Audio: Proxy Blowfish no activo, usando URL directa para "${track.title}"');
+        }
       }
     } catch (e) {
-      _logger.d('Resolver de stream HQ mantuvo URL base: $e');
+      _logger.d('Audio: Resolver mantuvo URL base: $e');
     }
 
-    // 2. Anti-Preview Guard: Si la duración es <= 30s o la URL es de preview, forzar endpoint comercial
-    if (resolvedTrack.durationSeconds > 0 && resolvedTrack.durationSeconds <= 30 ||
+    // 2. Guard de seguridad: evitar URLs de preview si el proxy está activo
+    if (BlowfishDecryptService.instance.isRunning &&
         resolvedTrack.streamUrl.contains('cdns-preview-')) {
-      _logger.w('Detectada pista preview de 30s (${resolvedTrack.title}) → Forzando reintento contra resolver HQ comercial.');
-      try {
-        final token = await SecureStorageService.instance.getDeezerToken();
-        final hqUrl = 'https://api.deezer.com/track/${resolvedTrack.id}/stream${token != null && token.isNotEmpty ? "?access_token=$token" : ""}';
-        resolvedTrack = resolvedTrack.copyWith(
-          streamUrl: hqUrl,
-          durationSeconds: math.max(resolvedTrack.durationSeconds, 180),
-          isFullLength: true,
-        );
-      } catch (_) {}
+      final localUrl = BlowfishDecryptService.instance.localUrl(track.id);
+      resolvedTrack = resolvedTrack.copyWith(streamUrl: localUrl, isFullLength: true);
     }
 
     state = state.copyWith(
@@ -332,7 +343,8 @@ class AudioNotifier extends StateNotifier<AudioState> {
       durationSeconds: resolvedTrack.durationSeconds,
       positionSeconds: 0,
     );
-    _ref.read(currentTrackProvider.notifier).state = resolvedTrack;
+    // Usar setTrack() del StateNotifier independiente (no .state = que rompe la derivación)
+    _ref.read(currentTrackProvider.notifier).setTrack(resolvedTrack);
 
     // Actualiza metadatos y estado en la sesión del sistema (pantalla de bloqueo)
     BellaAudioHandler.instance?.updateTrackMetadata(resolvedTrack);
@@ -352,22 +364,24 @@ class AudioNotifier extends StateNotifier<AudioState> {
 
       _logger.i('Audio Wi-Fi: Despachando a altavoz Power Dynamics WCS50 ($_activeSpeakerIp) en modo Controller');
 
-      // MÓVIL COMO MANDO A DISTANCIA EXCLUSIVO:
-      // Se detiene el reproductor local del teléfono para que llamadas, notas de voz o vídeos
-      // no interfieran con el altavoz ni pausen la transmisión de red del WCS50.
       await _localPlayer.stop();
-
-      // Configura la sesión multimedia del sistema con proveedor de volumen remoto (Xiaomi buttons)
       BellaAudioHandler.instance?.setRemoteWifiMode(_activeSpeakerIp);
 
-      // Normalización de Ganancia Dinámica (Requisito F)
       if (resolvedTrack.gainDb != 0.0) {
         await LinkplayBridgeService.instance.setEqualizerGain(_activeSpeakerIp!, resolvedTrack.gainDb);
       }
 
+      // Para Wi-Fi: si el proxy local está activo, obtener la URL con la IP LAN del dispositivo
+      // para que el altavoz físico Power Dynamics WCS50 pueda reproducir el stream descifrado.
+      String streamUrlForSpeaker = resolvedTrack.streamUrl;
+      if (BlowfishDecryptService.instance.isRunning) {
+        streamUrlForSpeaker = await BlowfishDecryptService.instance.networkUrlForSpeaker(track.id);
+        _logger.i('Audio Wi-Fi: URL proxy ajustada a IP local de red: $streamUrlForSpeaker');
+      }
+
       final ok = await UpnpService.instance.playOnLinkplayOrUpnp(
         speakerIp: _activeSpeakerIp!,
-        streamUrl: resolvedTrack.streamUrl,
+        streamUrl: streamUrlForSpeaker,
       );
 
       if (ok) {
@@ -391,6 +405,7 @@ class AudioNotifier extends StateNotifier<AudioState> {
       await _playLocal(resolvedTrack);
     }
   }
+
 
   // ─── Polling de Estado para Altavoz Wi-Fi (Auto-Advance & Heartbeat) ────────
 
@@ -506,7 +521,7 @@ class AudioNotifier extends StateNotifier<AudioState> {
         isPlaying: true,
         durationSeconds: fallbackTrack.durationSeconds,
       );
-      _ref.read(currentTrackProvider.notifier).state = fallbackTrack;
+      _ref.read(currentTrackProvider.notifier).setTrack(fallbackTrack);
       BellaAudioHandler.instance?.updateTrackMetadata(fallbackTrack);
 
       final source = AudioSource.uri(Uri.parse(fallbackTrack.streamUrl));
