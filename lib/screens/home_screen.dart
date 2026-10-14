@@ -902,6 +902,8 @@ class _HomeTab extends ConsumerWidget {
         ),
 
         const SliverToBoxAdapter(child: SizedBox(height: 120)),
+      ],
+    );
   }
 }
 

@@ -82,3 +82,4 @@ class TidalMusicService implements BaseMusicService {
   Future<String> resolveStreamUrl(Track track) =>
       resolveFullStreamUrl(track);
 }
+
