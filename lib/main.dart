@@ -4,12 +4,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:audio_service/audio_service.dart';
 import 'package:bella_music/theme/app_theme.dart';
 import 'package:bella_music/screens/home_screen.dart';
 import 'package:bella_music/services/discovery_service.dart';
+import 'package:bella_music/services/audio_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize System AudioService (MediaSessionCompat / Lockscreen / Volume buttons)
+  await AudioService.init(
+    builder: () => BellaAudioHandler(),
+    config: const AudioServiceConfig(
+      androidNotificationChannelId: 'com.bellamusic.app.channel.audio',
+      androidNotificationChannelName: 'Bella Music Reproducción',
+      androidNotificationOngoing: true,
+      androidStopForegroundOnPause: true,
+      androidNotificationIcon: 'mipmap/ic_launcher',
+    ),
+  );
 
   // Lock orientation to portrait for the premium experience
   await SystemChrome.setPreferredOrientations([

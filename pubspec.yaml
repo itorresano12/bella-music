@@ -24,9 +24,11 @@ dependencies:
   # Secure Storage (Keystore/Keychain hardware encryption)
   flutter_secure_storage: ^9.2.2
 
-  # Audio Playback (local fallback)
+  # Audio Playback (local fallback & background system integration)
   just_audio: ^0.9.40
   audio_session: ^0.1.21
+  audio_service: ^0.18.18
+  path_provider: ^2.1.3
 
   # Connectivity
   connectivity_plus: ^6.0.3

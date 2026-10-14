@@ -94,9 +94,17 @@ class AudioRoutingNotifier extends StateNotifier<AudioRoutingState> {
   void switchToWifiSpeaker() {
     _ref.read(discoveryServiceProvider.notifier).switchToWifiSpeaker();
   }
+
+  void updateActiveSpeakerIp(String newIp, {String? friendlyName}) {
+    state = state.copyWith(
+      activeSpeakerIp: newIp,
+      activeDeviceName: friendlyName ?? 'Altavoz Wi-Fi ($newIp)',
+    );
+  }
 }
 
 final audioRoutingProvider =
     StateNotifierProvider<AudioRoutingNotifier, AudioRoutingState>((ref) {
   return AudioRoutingNotifier(ref);
 });
+

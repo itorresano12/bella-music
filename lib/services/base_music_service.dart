@@ -308,3 +308,4 @@ class MusicServiceRegistry {
 
   static List<BaseMusicService> getAll() => _registry.values.toList();
 }
+

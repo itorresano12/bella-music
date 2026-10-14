@@ -130,10 +130,29 @@ ST: urn:schemas-upnp-org:device:MediaRenderer:1\r
     }
   }
 
+  /// Auto-reconexión silenciosa en segundo plano sin alterar la interfaz de usuario.
+  /// Se ejecuta automáticamente ante 3 fallos consecutivos de sondeo de estado.
+  Future<String?> reconnectSilently() async {
+    _logger.i('SSDP Heartbeat: Iniciando auto-reconexión silenciosa en segundo plano…');
+    final found = await _runUniversalSsdpScan(timeoutSeconds: 3);
+    if (found != null && NetworkValidator.isPrivateIp(found)) {
+      await SecureStorageService.instance.saveLastSpeakerIp(found);
+      final friendlyName = 'Altavoz Wi-Fi ($found)';
+      state = state.copyWith(
+        mode: AudioOutputMode.wifiSpeaker,
+        speakerIp: found,
+        speakerFriendlyName: friendlyName,
+      );
+      _logger.i('SSDP Heartbeat: Altavoz re-enlazado en caliente en $found.');
+      return found;
+    }
+    return null;
+  }
+
   // ─── Private helpers ────────────────────────────────────────────────────────
 
   /// Escucha el socket multicast y enlaza con el PRIMER MediaRenderer que responda
-  Future<String?> _runUniversalSsdpScan() async {
+  Future<String?> _runUniversalSsdpScan({int timeoutSeconds = _discoveryTimeout}) async {
     try {
       final socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
       socket.multicastHops = 4;
@@ -142,7 +161,7 @@ ST: urn:schemas-upnp-org:device:MediaRenderer:1\r
       socket.send(message, InternetAddress(_ssdpMulticastAddr), _ssdpPort);
 
       final completer = Completer<String?>();
-      final timer = Timer(Duration(seconds: _discoveryTimeout), () {
+      final timer = Timer(Duration(seconds: timeoutSeconds), () {
         if (!completer.isCompleted) completer.complete(null);
       });
 

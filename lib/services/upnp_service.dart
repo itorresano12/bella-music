@@ -8,29 +8,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:bella_music/utils/network_validator.dart';
+import 'package:bella_music/services/linkplay_bridge_service.dart';
 import 'package:logger/logger.dart';
 
-// ─── Remote Player Status Model ───────────────────────────────────────────────
-
-class LinkplayPlayerStatus {
-  final String status; // 'play', 'pause', 'stop', 'load'
-  final int currentPositionSeconds;
-  final int totalDurationSeconds;
-
-  const LinkplayPlayerStatus({
-    required this.status,
-    required this.currentPositionSeconds,
-    required this.totalDurationSeconds,
-  });
-
-  bool get isPlaying => status.toLowerCase() == 'play';
-  bool get isPaused  => status.toLowerCase() == 'pause';
-  bool get isStopped => status.toLowerCase() == 'stop';
-
-  /// Detects when track has finished or is within 2 seconds of completion
-  bool get isNearEnd =>
-      totalDurationSeconds > 0 && currentPositionSeconds >= (totalDurationSeconds - 2);
-}
+export 'package:bella_music/services/linkplay_bridge_service.dart' show LinkplayPlayerStatus;
 
 class UpnpService {
   UpnpService._();

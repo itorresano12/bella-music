@@ -157,6 +157,8 @@ class DeezerService {
         ? 'https://api.deezer.com/track/$id/stream?access_token=$token'
         : (preview.isNotEmpty ? preview : 'https://api.deezer.com/track/$id/stream');
 
+    final gain = (item['gain'] as num?)?.toDouble() ?? 0.0;
+
     return Track(
       id: id,
       title: item['title']?.toString() ?? 'Pista sin título',
@@ -170,6 +172,7 @@ class DeezerService {
       source: 'deezer',
       bitrate: 320,
       isFullLength: true,
+      gainDb: gain,
     );
   }
 

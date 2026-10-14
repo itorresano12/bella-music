@@ -32,6 +32,7 @@ class Track extends Equatable {
     this.source = 'local',
     this.bitrate = 320,
     this.isFullLength = true,
+    this.gainDb = 0.0,
   });
 
   final String id;
@@ -43,7 +44,8 @@ class Track extends Equatable {
   final String source;
   final int bitrate; // 320 kbps High Quality
   final bool isFullLength;
+  final double gainDb; // ReplayGain / Loudness normalization in dB
 
   @override
-  List<Object?> get props => [id, title, artist, streamUrl, bitrate, isFullLength];
+  List<Object?> get props => [id, title, artist, streamUrl, bitrate, isFullLength, gainDb];
 }

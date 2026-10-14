@@ -6,14 +6,17 @@
 
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:bella_music/theme/app_theme.dart';
 import 'package:bella_music/models/playlist_model.dart';
 import 'package:bella_music/models/audio_output_mode.dart';
 import 'package:bella_music/providers/playlist_provider.dart';
+import 'package:bella_music/providers/kiosk_mode_provider.dart';
 import 'package:bella_music/services/audio_service.dart';
 import 'package:bella_music/services/discovery_service.dart';
+import 'package:bella_music/services/emergency_audio_service.dart';
 import 'package:bella_music/services/deezer_service.dart';
 import 'package:bella_music/widgets/playlist_carousel.dart';
 import 'package:bella_music/widgets/services_grid.dart';
@@ -28,40 +31,88 @@ class HomeScreen extends ConsumerWidget {
     final currentTab = ref.watch(currentTabProvider);
     final discovery  = ref.watch(discoveryServiceProvider);
     final audioState = ref.watch(audioServiceProvider);
+    final isKioskLocked = ref.watch(kioskModeProvider);
+    final isEmergencyOffline = ref.watch(emergencyModeProvider);
 
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: AppTheme.background,
       appBar: _GlassAppBar(
         discoveryMode: discovery.mode,
-        onSearchTap: () => ref.read(currentTabProvider.notifier).state = 1,
-        onProfileTap: () => _openProfileModal(context, ref),
+        isKioskLocked: isKioskLocked,
+        onKioskLockTap: () => ref.read(kioskModeProvider.notifier).toggle(),
+        onSearchTap: () {
+          if (!isKioskLocked) {
+            ref.read(currentTabProvider.notifier).state = 1;
+          }
+        },
+        onProfileTap: () {
+          if (!isKioskLocked) {
+            _openProfileModal(context, ref);
+          }
+        },
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: AppTheme.backgroundGradient,
-        ),
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 250),
-          child: switch (currentTab) {
-            0 => const _HomeTab(key: ValueKey(0)),
-            1 => const _SearchTab(key: ValueKey(1)),
-            2 => const _LibraryTab(key: ValueKey(2)),
-            3 => const _SettingsTab(key: ValueKey(3)),
-            _ => const _HomeTab(key: ValueKey(0)),
-          },
-        ),
-      ),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
+      body: Stack(
         children: [
-          if (audioState.currentTrack != null) const NowPlayingBar(),
-          _BottomNav(
-            currentTab: currentTab,
-            onTabSelected: (index) =>
-                ref.read(currentTabProvider.notifier).state = index,
+          AbsorbPointer(
+            absorbing: isKioskLocked,
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: AppTheme.backgroundGradient,
+              ),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                child: switch (currentTab) {
+                  0 => const _HomeTab(key: ValueKey(0)),
+                  1 => const _SearchTab(key: ValueKey(1)),
+                  2 => const _LibraryTab(key: ValueKey(2)),
+                  3 => const _SettingsTab(key: ValueKey(3)),
+                  _ => const _HomeTab(key: ValueKey(0)),
+                },
+              ),
+            ),
           ),
+          if (isEmergencyOffline)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + kToolbarHeight + 8,
+              left: 0,
+              right: 0,
+              child: _EmergencyOfflineBanner(
+                onDismiss: () => ref.read(emergencyModeProvider.notifier).state = false,
+              ),
+            ),
+          if (isKioskLocked) ...[
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withOpacity(0.35),
+              ),
+            ),
+            Positioned(
+              bottom: 110,
+              right: 20,
+              child: _KioskUnlockButton(
+                onUnlocked: () {
+                  HapticFeedback.heavyImpact();
+                  ref.read(kioskModeProvider.notifier).unlock();
+                },
+              ),
+            ),
+          ],
         ],
+      ),
+      bottomNavigationBar: AbsorbPointer(
+        absorbing: isKioskLocked,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (audioState.currentTrack != null) const NowPlayingBar(),
+            _BottomNav(
+              currentTab: currentTab,
+              onTabSelected: (index) =>
+                  ref.read(currentTabProvider.notifier).state = index,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -207,11 +258,15 @@ class _GlassAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.discoveryMode,
     required this.onSearchTap,
     required this.onProfileTap,
+    this.isKioskLocked = false,
+    this.onKioskLockTap,
   });
 
   final AudioOutputMode discoveryMode;
   final VoidCallback onSearchTap;
   final VoidCallback onProfileTap;
+  final bool isKioskLocked;
+  final VoidCallback? onKioskLockTap;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight + 20);
@@ -255,6 +310,15 @@ class _GlassAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
               const Spacer(),
               IconButton(
+                icon: Icon(
+                  isKioskLocked ? Icons.lock_rounded : Icons.lock_outline_rounded,
+                  size: 22,
+                ),
+                color: isKioskLocked ? AppTheme.accentPink : AppTheme.onSurface,
+                tooltip: isKioskLocked ? 'Modo Kiosco Bloqueado' : 'Bloquear Mostrador',
+                onPressed: onKioskLockTap,
+              ),
+              IconButton(
                 icon: const Icon(Icons.search_rounded, size: 24),
                 color: AppTheme.onSurface,
                 onPressed: onSearchTap,
@@ -280,6 +344,159 @@ class _GlassAppBar extends StatelessWidget implements PreferredSizeWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─── Emergency Offline Banner ─────────────────────────────────────────────────
+
+class _EmergencyOfflineBanner extends StatelessWidget {
+  const _EmergencyOfflineBanner({required this.onDismiss});
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF9A3412).withOpacity(0.95),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF97316), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.wifi_off_rounded, color: Colors.white, size: 20),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Modo Emergencia Offline Activo (Sin Internet)',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: onDismiss,
+            child: const Icon(Icons.close_rounded, color: Colors.white70, size: 18),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Kiosk Unlock Button (3-Second Long Press) ────────────────────────────────
+
+class _KioskUnlockButton extends StatefulWidget {
+  const _KioskUnlockButton({required this.onUnlocked});
+  final VoidCallback onUnlocked;
+
+  @override
+  State<_KioskUnlockButton> createState() => _KioskUnlockButtonState();
+}
+
+class _KioskUnlockButtonState extends State<_KioskUnlockButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3000),
+    )..addStatusListener((status) {
+        if (status == AnimationStatus.completed) {
+          widget.onUnlocked();
+        }
+      });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onLongPressStart: (_) => _controller.forward(),
+      onLongPressEnd: (_) {
+        if (_controller.status != AnimationStatus.completed) {
+          _controller.reverse();
+        }
+      },
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E24).withOpacity(0.95),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(
+                color: AppTheme.accentPink.withOpacity(0.4 + (_controller.value * 0.6)),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.accentPink.withOpacity(0.3 * _controller.value),
+                  blurRadius: 16,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      CircularProgressIndicator(
+                        value: _controller.value,
+                        strokeWidth: 3.5,
+                        backgroundColor: Colors.white12,
+                        valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.accentPink),
+                      ),
+                      const Icon(
+                        Icons.lock_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  _controller.value > 0
+                      ? 'Desbloqueando (${(3 - (_controller.value * 3)).toStringAsFixed(1)}s)...'
+                      : 'Mantén pulsado 3s para desbloquear',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
