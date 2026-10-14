@@ -452,7 +452,7 @@ class _AuthWebViewScreenState extends ConsumerState<AuthWebViewScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                   child: Row(
                     children: [
-                      const Icon(Icons.info_outline_rounded, size: 16, color: AppTheme.accentOrange),
+                      const Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFFF97316)),
                       const SizedBox(width: 8),
                       const Expanded(
                         child: Text(
@@ -461,8 +461,8 @@ class _AuthWebViewScreenState extends ConsumerState<AuthWebViewScreen> {
                         ),
                       ),
                       TextButton.icon(
-                        icon: const Icon(Icons.library_music_rounded, size: 14, color: AppTheme.accentOrange),
-                        label: const Text('Mis Playlists', style: TextStyle(fontSize: 11, color: AppTheme.accentOrange, fontWeight: FontWeight.bold)),
+                        icon: const Icon(Icons.library_music_rounded, size: 14, color: Color(0xFFF97316)),
+                        label: const Text('Mis Playlists', style: TextStyle(fontSize: 11, color: Color(0xFFF97316), fontWeight: FontWeight.bold)),
                         onPressed: () => _controller.loadRequest(Uri.parse('https://music.amazon.es/my/playlists')),
                       ),
                     ],
