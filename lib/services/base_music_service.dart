@@ -2,14 +2,22 @@
 //
 // Unified Music Streaming Architecture:
 // Abstract contract defining multi-platform music providers (Deezer, Amazon, Spotify, Tidal).
-// Cleanly decouples UI from concrete API implementations.
+// Cleanly decouples UI from concrete API implementations and eradicates all mock data.
 
 import 'package:bella_music/models/playlist_model.dart';
 import 'package:bella_music/services/deezer_service.dart';
+import 'package:bella_music/services/amazon_music_service.dart';
+import 'package:bella_music/services/spotify_service.dart';
+import 'package:bella_music/services/tidal_service.dart';
 import 'package:bella_music/services/secure_storage_service.dart';
 
+export 'package:bella_music/services/deezer_service.dart';
+export 'package:bella_music/services/amazon_music_service.dart';
+export 'package:bella_music/services/spotify_service.dart';
+export 'package:bella_music/services/tidal_service.dart';
+
 abstract class BaseMusicService {
-  /// Unique identifier (e.g., 'deezer', 'amazon', 'spotify', 'tidal')
+  /// Unique identifier ('deezer', 'amazon', 'spotify', 'tidal')
   String get serviceId;
 
   /// Human-readable brand name
@@ -24,8 +32,11 @@ abstract class BaseMusicService {
   /// Validates session or prompts authentication
   Future<bool> authenticate();
 
-  /// Retrieves user or curated playlists for the platform
+  /// A) Mis Playlists (Biblioteca personal del usuario autenticado)
   Future<List<Playlist>> getUserPlaylists();
+
+  /// B) Playlists Recomendadas / Editoriales / Destacadas de la plataforma
+  Future<List<Playlist>> getFeaturedPlaylists();
 
   /// Retrieves all tracks belonging to a given playlist
   Future<List<Track>> getPlaylistTracks(String playlistId);
@@ -60,14 +71,17 @@ class DeezerMusicService implements BaseMusicService {
   @override
   Future<bool> authenticate() async {
     final token = await SecureStorageService.instance.getDeezerToken();
-    if (token != null && token.isNotEmpty) return true;
-    final res = await DeezerService.instance.authenticateAndSync();
-    return res.success;
+    return token != null && token.isNotEmpty;
   }
 
   @override
   Future<List<Playlist>> getUserPlaylists() async {
     return DeezerService.instance.getUserPlaylists();
+  }
+
+  @override
+  Future<List<Playlist>> getFeaturedPlaylists() async {
+    return DeezerService.instance.getFeaturedPlaylists();
   }
 
   @override
@@ -82,282 +96,6 @@ class DeezerMusicService implements BaseMusicService {
   @override
   Future<String> resolveFullStreamUrl(Track track) async {
     return DeezerService.instance.resolveFullStreamUrl(track);
-  }
-
-  @override
-  Future<String> resolveStreamUrl(Track track) =>
-      resolveFullStreamUrl(track);
-}
-
-// ─── Functional Amazon Music Provider ─────────────────────────────────────────
-
-class AmazonMusicService implements BaseMusicService {
-  const AmazonMusicService();
-
-  @override
-  String get serviceId => 'amazon';
-
-  @override
-  String get displayName => 'Amazon Music Unlimited';
-
-  @override
-  String get icon => '🎶';
-
-  @override
-  String get brandColorHex => '#F97316';
-
-  @override
-  Future<bool> authenticate() async {
-    final token = await SecureStorageService.instance.getAmazonToken();
-    return token != null && token.isNotEmpty;
-  }
-
-  @override
-  Future<List<Playlist>> getUserPlaylists() async {
-    return const [
-      Playlist(
-        id: 'amz_1',
-        name: 'Tasty Santander Chill',
-        coverUrl: 'https://picsum.photos/seed/amz1/400/400',
-        trackCount: 24,
-        source: 'amazon',
-      ),
-      Playlist(
-        id: 'amz_2',
-        name: 'Late Night Vibes',
-        coverUrl: 'https://picsum.photos/seed/night/400/400',
-        trackCount: 18,
-        source: 'amazon',
-      ),
-      Playlist(
-        id: 'amz_3',
-        name: 'Electric Summer Lounge',
-        coverUrl: 'https://picsum.photos/seed/summer/400/400',
-        trackCount: 27,
-        source: 'amazon',
-      ),
-      Playlist(
-        id: 'amz_4',
-        name: 'Acoustic Morning',
-        coverUrl: 'https://picsum.photos/seed/acoustic/400/400',
-        trackCount: 32,
-        source: 'amazon',
-      ),
-    ];
-  }
-
-  @override
-  Future<List<Track>> getPlaylistTracks(String playlistId) async {
-    return const [
-      Track(
-        id: 'amz_t1',
-        title: 'Midnight City',
-        artist: 'Echo Waves',
-        albumArt: 'https://picsum.photos/seed/midnight/400/400',
-        streamUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-        durationSeconds: 183,
-        source: 'amazon',
-        bitrate: 320,
-        isFullLength: true,
-      ),
-      Track(
-        id: 'amz_t2',
-        title: 'Neon Oasis',
-        artist: 'Amazon Originals',
-        albumArt: 'https://picsum.photos/seed/oasis/400/400',
-        streamUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
-        durationSeconds: 225,
-        source: 'amazon',
-        bitrate: 320,
-        isFullLength: true,
-      ),
-      Track(
-        id: 'amz_t3',
-        title: 'Velvet Groove',
-        artist: 'Amazon Ultra HD',
-        albumArt: 'https://picsum.photos/seed/velvet/400/400',
-        streamUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3',
-        durationSeconds: 240,
-        source: 'amazon',
-        bitrate: 320,
-        isFullLength: true,
-      ),
-    ];
-  }
-
-  @override
-  Future<List<Track>> getAllTracks(String playlistId) =>
-      getPlaylistTracks(playlistId);
-
-  @override
-  Future<String> resolveFullStreamUrl(Track track) async {
-    return track.streamUrl;
-  }
-
-  @override
-  Future<String> resolveStreamUrl(Track track) =>
-      resolveFullStreamUrl(track);
-}
-
-// ─── Functional Spotify Provider ──────────────────────────────────────────────
-
-class SpotifyMusicService implements BaseMusicService {
-  const SpotifyMusicService();
-
-  @override
-  String get serviceId => 'spotify';
-
-  @override
-  String get displayName => 'Spotify Premium';
-
-  @override
-  String get icon => '🟢';
-
-  @override
-  String get brandColorHex => '#1DB954';
-
-  @override
-  Future<bool> authenticate() async {
-    final token = await SecureStorageService.instance.getSpotifyToken();
-    return token != null && token.isNotEmpty;
-  }
-
-  @override
-  Future<List<Playlist>> getUserPlaylists() async {
-    return const [
-      Playlist(
-        id: 'spot_1',
-        name: "Tasty Santander Hits",
-        coverUrl: 'https://picsum.photos/seed/spotify1/400/400',
-        trackCount: 42,
-        source: 'spotify',
-      ),
-      Playlist(
-        id: 'spot_2',
-        name: "Today's Top Hits",
-        coverUrl: 'https://picsum.photos/seed/spotify2/400/400',
-        trackCount: 50,
-        source: 'spotify',
-      ),
-      Playlist(
-        id: 'spot_3',
-        name: 'Peaceful Piano Lounge',
-        coverUrl: 'https://picsum.photos/seed/piano/400/400',
-        trackCount: 35,
-        source: 'spotify',
-      ),
-    ];
-  }
-
-  @override
-  Future<List<Track>> getPlaylistTracks(String playlistId) async {
-    return const [
-      Track(
-        id: 'spot_t1',
-        title: 'Solar Flare',
-        artist: 'Spotify Discovery',
-        albumArt: 'https://picsum.photos/seed/solar/400/400',
-        streamUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3',
-        durationSeconds: 210,
-        source: 'spotify',
-        bitrate: 320,
-        isFullLength: true,
-      ),
-      Track(
-        id: 'spot_t2',
-        title: 'Emerald Waves',
-        artist: 'Nordic Sound',
-        albumArt: 'https://picsum.photos/seed/emerald/400/400',
-        streamUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3',
-        durationSeconds: 232,
-        source: 'spotify',
-        bitrate: 320,
-        isFullLength: true,
-      ),
-    ];
-  }
-
-  @override
-  Future<List<Track>> getAllTracks(String playlistId) =>
-      getPlaylistTracks(playlistId);
-
-  @override
-  Future<String> resolveFullStreamUrl(Track track) async {
-    return track.streamUrl;
-  }
-
-  @override
-  Future<String> resolveStreamUrl(Track track) =>
-      resolveFullStreamUrl(track);
-}
-
-// ─── Functional Tidal Provider ────────────────────────────────────────────────
-
-class TidalMusicService implements BaseMusicService {
-  const TidalMusicService();
-
-  @override
-  String get serviceId => 'tidal';
-
-  @override
-  String get displayName => 'Tidal HiFi Master';
-
-  @override
-  String get icon => '⬛';
-
-  @override
-  String get brandColorHex => '#00FFFF';
-
-  @override
-  Future<bool> authenticate() async {
-    final token = await SecureStorageService.instance.getTidalToken();
-    return token != null && token.isNotEmpty;
-  }
-
-  @override
-  Future<List<Playlist>> getUserPlaylists() async {
-    return const [
-      Playlist(
-        id: 'tidal_1',
-        name: 'Tidal Masters: Santander Club',
-        coverUrl: 'https://picsum.photos/seed/tidal1/400/400',
-        trackCount: 38,
-        source: 'tidal',
-      ),
-      Playlist(
-        id: 'tidal_2',
-        name: 'HiFi Acoustic Essentials',
-        coverUrl: 'https://picsum.photos/seed/acoustic/400/400',
-        trackCount: 28,
-        source: 'tidal',
-      ),
-    ];
-  }
-
-  @override
-  Future<List<Track>> getPlaylistTracks(String playlistId) async {
-    return const [
-      Track(
-        id: 'tidal_t1',
-        title: 'Master Audio Flow',
-        artist: 'Tidal Studio Quality',
-        albumArt: 'https://picsum.photos/seed/master/400/400',
-        streamUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3',
-        durationSeconds: 245,
-        source: 'tidal',
-        bitrate: 320,
-        isFullLength: true,
-      ),
-    ];
-  }
-
-  @override
-  Future<List<Track>> getAllTracks(String playlistId) =>
-      getPlaylistTracks(playlistId);
-
-  @override
-  Future<String> resolveFullStreamUrl(Track track) async {
-    return track.streamUrl;
   }
 
   @override

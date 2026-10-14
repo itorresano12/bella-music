@@ -33,48 +33,77 @@ class DeezerService {
   final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
   static const String _baseUrl = 'https://api.deezer.com';
 
-  /// Fetches real playlists belonging to the authenticated Deezer user (/user/me/playlists)
-  /// with automatic fallback to public profile / curated playlists if no token is saved.
+  /// A) Fetches real personal playlists belonging to the authenticated Deezer user (/user/me/playlists)
   Future<List<Playlist>> getUserPlaylists({String? token}) async {
     final activeToken = token ?? await SecureStorageService.instance.getDeezerToken();
 
-    if (activeToken != null && activeToken.isNotEmpty) {
-      try {
-        _logger.i('Deezer: Consultando playlists de usuario autenticado (/user/me/playlists)…');
-        final uri = Uri.parse('$_baseUrl/user/me/playlists?access_token=$activeToken&limit=50');
-        final res = await http.get(uri).timeout(const Duration(seconds: 10));
-        if (res.statusCode == 200) {
-          final data = jsonDecode(res.body);
-          if (data is Map && data['data'] is List) {
-            final list = data['data'] as List;
-            if (list.isNotEmpty) {
-              final userPlaylists = list.map((item) {
-                return Playlist(
-                  id: item['id']?.toString() ?? '',
-                  name: item['title']?.toString() ?? 'Playlist Deezer',
-                  coverUrl: item['picture_medium']?.toString() ??
-                      item['picture_big']?.toString() ??
-                      item['picture']?.toString() ??
-                      'https://picsum.photos/seed/playlist/400/400',
-                  trackCount: (item['nb_tracks'] as num?)?.toInt() ?? 0,
-                  source: 'deezer',
-                );
-              }).toList();
-              _logger.i('Deezer: ¡Cargadas ${userPlaylists.length} playlists de la biblioteca de usuario!');
-              return userPlaylists;
-            }
-          }
-        }
-      } catch (e) {
-        _logger.w('Deezer: Error al consultar /user/me/playlists ($e) — usando fallback público.');
-      }
+    if (activeToken == null || activeToken.isEmpty) {
+      _logger.d('Deezer: No hay token de usuario almacenado para /user/me/playlists.');
+      return [];
     }
 
-    // Fallback: Si no hay token de usuario o falla la API privada, consultar las listas públicas
-    _logger.i('Deezer: Cargando playlists públicas de mostrador…');
-    final fallback = await searchPlaylists('Tasty Santander', token: activeToken);
-    if (fallback.isNotEmpty) return fallback;
-    return searchPlaylists('Pop', token: activeToken);
+    try {
+      _logger.i('Deezer: Consultando playlists de usuario autenticado (/user/me/playlists)…');
+      final uri = Uri.parse('$_baseUrl/user/me/playlists?access_token=$activeToken&limit=50');
+      final res = await http.get(uri).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is Map && data['data'] is List) {
+          final list = data['data'] as List;
+          final userPlaylists = list.map((item) {
+            return Playlist(
+              id: item['id']?.toString() ?? '',
+              name: item['title']?.toString() ?? 'Playlist Deezer',
+              coverUrl: item['picture_medium']?.toString() ??
+                  item['picture_big']?.toString() ??
+                  item['picture']?.toString() ??
+                  'https://picsum.photos/seed/playlist/400/400',
+              trackCount: (item['nb_tracks'] as num?)?.toInt() ?? 0,
+              source: 'deezer',
+            );
+          }).toList();
+          _logger.i('Deezer: ¡Cargadas ${userPlaylists.length} playlists de la biblioteca de usuario!');
+          return userPlaylists;
+        }
+      }
+    } catch (e) {
+      _logger.w('Deezer: Error al consultar /user/me/playlists ($e)');
+    }
+    return [];
+  }
+
+  /// B) Fetches official recommended / editorial chart playlists from Deezer (/chart/0/playlists)
+  Future<List<Playlist>> getFeaturedPlaylists({String? token}) async {
+    try {
+      _logger.i('Deezer: Consultando playlists recomendadas oficiales (/chart/0/playlists)…');
+      final uri = Uri.parse('$_baseUrl/chart/0/playlists?limit=30');
+      final res = await http.get(uri).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is Map && data['data'] is List) {
+          final list = data['data'] as List;
+          final featured = list.map((item) {
+            return Playlist(
+              id: item['id']?.toString() ?? '',
+              name: item['title']?.toString() ?? 'Playlist Deezer',
+              coverUrl: item['picture_medium']?.toString() ??
+                  item['picture_big']?.toString() ??
+                  item['picture']?.toString() ??
+                  'https://picsum.photos/seed/playlist/400/400',
+              trackCount: (item['nb_tracks'] as num?)?.toInt() ?? 0,
+              source: 'deezer',
+            );
+          }).toList();
+          if (featured.isNotEmpty) {
+            _logger.i('Deezer: ¡Cargadas ${featured.length} playlists recomendadas oficiales!');
+            return featured;
+          }
+        }
+      }
+    } catch (e) {
+      _logger.w('Deezer: Error al consultar /chart/0/playlists ($e) — usando fallback editorial.');
+    }
+    return searchPlaylists('Top Hits', token: token);
   }
 
   /// Resolves the authenticated full-length stream URL (320 kbps / FLAC).

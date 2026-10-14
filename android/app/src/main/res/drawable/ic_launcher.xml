@@ -3,11 +3,57 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Dark obsidian background -->
+    <path
+        android:fillColor="#0B0814"
+        android:pathData="M0,0h108v108h-108z"/>
+
+    <!-- Subtle neon ambient aura -->
+    <path
+        android:fillColor="#1F8B5CF6"
+        android:pathData="M54,54m-38,0a38,38 0,1 1,76 0a38,38 0,1 1,-76 0"/>
+
+    <!-- Glowing outer soundwave arc -->
+    <path
+        android:strokeColor="#EC4899"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M30,34 A30,30 0 0,1 78,34"/>
+
+    <path
+        android:strokeColor="#3B82F6"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M30,74 A30,30 0 0,0 78,74"/>
+
+    <!-- Stylized Bella 'B' Music Monogram -->
+    <!-- Left vertical soundbar/stem -->
+    <path
+        android:fillColor="#EC4899"
+        android:pathData="M36,33 C36,31.3 37.3,30 39,30 L43,30 C44.7,30 46,31.3 46,33 L46,75 C46,76.7 44.7,78 43,78 L39,78 C37.3,78 36,76.7 36,75 Z"/>
+
+    <!-- Upper loop of 'B' / Note Head -->
     <path
         android:fillColor="#8B5CF6"
-        android:pathData="M0,0h108v108h-108z"/>
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M40,30v48l36,-24z"/>
-</vector>
+        android:pathData="M44,30 L57,30 C63.6,30 68,34.4 68,41 C68,47.6 63.6,52 57,52 L44,52 Z M50,36 L50,46 L56,46 C59.3,46 62,43.8 62,41 C62,38.2 59.3,36 56,36 Z"/>
 
+    <!-- Lower loop of 'B' / Audio resonant chamber -->
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M44,48 L59,48 C66.2,48 71,53 71,60 C71,67 66.2,72 59,72 L44,72 Z M50,54 L50,66 L58,66 C62,66 65,63.5 65,60 C65,56.5 62,54 58,54 Z"/>
+
+    <!-- Equalizer soundwave pulses on right side -->
+    <path
+        android:fillColor="#EC4899"
+        android:pathData="M76,46 C76,44.9 76.9,44 78,44 L78,44 C79.1,44 80,44.9 80,46 L80,62 C80,63.1 79.1,64 78,64 L78,64 C76.9,64 76,63.1 76,62 Z"/>
+
+    <path
+        android:fillColor="#06B6D4"
+        android:pathData="M83,50 C83,48.9 83.9,48 85,48 L85,48 C86.1,48 87,48.9 87,50 L87,58 C87,59.1 86.1,60 85,60 L85,60 C83.9,60 83,59.1 83,58 Z"/>
+
+    <!-- Floating music accent dot -->
+    <path
+        android:fillColor="#EC4899"
+        android:pathData="M30,48m-2.5,0a2.5,2.5 0,1 1,5 0a2.5,2.5 0,1 1,-5 0"/>
+</vector>

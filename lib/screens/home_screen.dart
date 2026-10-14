@@ -22,6 +22,7 @@ import 'package:bella_music/widgets/playlist_carousel.dart';
 import 'package:bella_music/widgets/services_grid.dart';
 import 'package:bella_music/widgets/now_playing_bar.dart';
 import 'package:bella_music/widgets/glass_container.dart';
+import 'package:bella_music/screens/auth_webview_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -502,182 +503,294 @@ class _KioskUnlockButtonState extends State<_KioskUnlockButton>
   }
 }
 
-// ─── Modal: Todas las Playlists ───────────────────────────────────────────────
+// ─── Modal: Todas las Playlists (Catálogo Dual: Recomendadas + Personales) ────
 
 void _openAllPlaylistsModal(BuildContext context, WidgetRef ref) {
   showModalBottomSheet(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (ctx) => Consumer(
-      builder: (context, ref, _) {
-        final playlists = ref.watch(userPlaylistsProvider);
-        final selected = ref.watch(selectedPlaylistProvider);
-        final isLoading = ref.watch(isPlaylistLoadingProvider);
+    builder: (ctx) => const _AllPlaylistsModalContent(),
+  );
+}
 
-        return Container(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.75,
-          ),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          decoration: BoxDecoration(
-            color: const Color(0xFF161616),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-            border: Border.all(
-              color: AppTheme.accentViolet.withOpacity(0.3),
-              width: 1,
+class _AllPlaylistsModalContent extends ConsumerStatefulWidget {
+  const _AllPlaylistsModalContent();
+
+  @override
+  ConsumerState<_AllPlaylistsModalContent> createState() =>
+      _AllPlaylistsModalContentState();
+}
+
+class _AllPlaylistsModalContentState
+    extends ConsumerState<_AllPlaylistsModalContent> {
+  int _activeCategoryIndex = 0; // 0: Recomendadas, 1: Mis Playlists
+
+  @override
+  Widget build(BuildContext context) {
+    final userPlaylists = ref.watch(userPlaylistsProvider);
+    final featuredPlaylists = ref.watch(featuredPlaylistsProvider);
+    final selected = ref.watch(selectedPlaylistProvider);
+    final isLoading = ref.watch(isPlaylistLoadingProvider);
+
+    final displayList = _activeCategoryIndex == 0 ? featuredPlaylists : userPlaylists;
+
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.82,
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161616),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        border: Border.all(
+          color: AppTheme.accentViolet.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: 18),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Todas tus Playlists',
-                        style: TextStyle(
-                          color: AppTheme.onSurface,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 18,
-                        ),
-                      ),
-                      Text(
-                        '${playlists.length} listas disponibles • Audio Completo HQ',
-                        style: const TextStyle(
-                          color: AppTheme.onSurfaceSub,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (isLoading)
-                    const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: AppTheme.accentViolet,
-                      ),
-                    )
-                  else
-                    IconButton(
-                      icon: const Icon(Icons.refresh_rounded, color: AppTheme.accentViolet, size: 24),
-                      tooltip: 'Actualizar listas',
-                      onPressed: () {
-                        ref.read(userPlaylistsProvider.notifier).fetchUserPlaylists();
-                      },
+                  const Text(
+                    'Explorador de Catálogo',
+                    style: TextStyle(
+                      color: AppTheme.onSurface,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 18,
                     ),
+                  ),
+                  Text(
+                    '${displayList.length} listas en ${_activeCategoryIndex == 0 ? "Recomendadas" : "Mis Playlists"} • Audio HQ 320k',
+                    style: const TextStyle(
+                      color: AppTheme.onSurfaceSub,
+                      fontSize: 12,
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 14),
-              const Divider(color: Colors.white12, height: 1),
-              const SizedBox(height: 8),
-              if (playlists.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 40),
-                  child: Center(
-                    child: Text(
-                      'No se encontraron playlists del usuario.\nInicia sesión en Ajustes para sincronizar tus listas de Deezer o Amazon Music.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 13, height: 1.4),
-                    ),
+              if (isLoading)
+                const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: AppTheme.accentViolet,
                   ),
                 )
               else
-                Flexible(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    physics: const BouncingScrollPhysics(),
-                    itemCount: playlists.length,
-                    separatorBuilder: (_, __) => const Divider(color: Colors.white10, height: 10),
-                    itemBuilder: (context, index) {
-                      final pl = playlists[index];
-                      final isSelected = selected?.id == pl.id;
-
-                      return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                        leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.network(
-                            pl.coverUrl,
-                            width: 50,
-                            height: 50,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              width: 50,
-                              height: 50,
-                              color: AppTheme.surfaceLight,
-                              child: const Icon(Icons.album_rounded, color: AppTheme.accentViolet, size: 28),
-                            ),
-                          ),
-                        ),
-                        title: Text(
-                          pl.name,
-                          style: TextStyle(
-                            color: isSelected ? AppTheme.accentPink : Colors.white,
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Row(
-                            children: [
-                              PlaylistSourceBadge(source: pl.source),
-                              const SizedBox(width: 8),
-                              Text(
-                                '${pl.trackCount} canciones',
-                                style: const TextStyle(color: AppTheme.onSurfaceSub, fontSize: 11),
-                              ),
-                            ],
-                          ),
-                        ),
-                        trailing: isSelected
-                            ? const Icon(Icons.check_circle_rounded, color: AppTheme.accentPink, size: 24)
-                            : const Icon(Icons.arrow_forward_ios_rounded, color: AppTheme.onSurfaceSub, size: 16),
-                        onTap: () async {
-                          Navigator.pop(ctx);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              duration: const Duration(seconds: 1),
-                              backgroundColor: const Color(0xFF1E293B),
-                              content: Text('Cargando catálogo completo de "${pl.name}"...'),
-                            ),
-                          );
-                          await ref.read(userPlaylistsProvider.notifier).selectPlaylist(
-                            pl,
-                            autoPlay: false,
-                            switchToLibrary: true,
-                          );
-                        },
-                      );
-                    },
-                  ),
+                IconButton(
+                  icon: const Icon(Icons.refresh_rounded, color: AppTheme.accentViolet, size: 24),
+                  tooltip: 'Actualizar listas',
+                  onPressed: () {
+                    ref.read(userPlaylistsProvider.notifier).fetchUserPlaylists();
+                    ref.read(featuredPlaylistsProvider.notifier).fetchFeaturedPlaylists();
+                  },
                 ),
             ],
           ),
-        );
-      },
-    ),
-  );
+          const SizedBox(height: 14),
+
+          // Segmented Category Tabs: [✨ Recomendadas] | [👤 Mis Playlists]
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _activeCategoryIndex = 0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _activeCategoryIndex == 0 ? AppTheme.accentViolet : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '✨ Recomendadas (${featuredPlaylists.length})',
+                          style: TextStyle(
+                            color: _activeCategoryIndex == 0 ? Colors.white : AppTheme.onSurfaceSub,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _activeCategoryIndex = 1),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _activeCategoryIndex == 1 ? AppTheme.accentPink : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '👤 Mis Playlists (${userPlaylists.length})',
+                          style: TextStyle(
+                            color: _activeCategoryIndex == 1 ? Colors.white : AppTheme.onSurfaceSub,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Divider(color: Colors.white12, height: 1),
+          const SizedBox(height: 8),
+
+          if (displayList.isEmpty && _activeCategoryIndex == 1)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
+              child: Center(
+                child: Column(
+                  children: [
+                    const Icon(Icons.library_music_rounded, color: AppTheme.accentPink, size: 42),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'No se encontraron playlists en tu cuenta',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Inicia sesión con tu portal oficial en Ajustes para sincronizar automáticamente tu biblioteca.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 12),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        AuthWebViewScreen.open(context, ref, 'Deezer');
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.accentPink,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      icon: const Icon(Icons.login_rounded, size: 16),
+                      label: const Text('Conectar Servicio', style: TextStyle(fontSize: 12)),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else if (displayList.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Center(
+                child: Text(
+                  'Cargando catálogo…',
+                  style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 13),
+                ),
+              ),
+            )
+          else
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                physics: const BouncingScrollPhysics(),
+                itemCount: displayList.length,
+                separatorBuilder: (_, __) => const Divider(color: Colors.white10, height: 10),
+                itemBuilder: (context, index) {
+                  final pl = displayList[index];
+                  final isSelected = selected?.id == pl.id;
+
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.network(
+                        pl.coverUrl,
+                        width: 50,
+                        height: 50,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 50,
+                          height: 50,
+                          color: AppTheme.surfaceLight,
+                          child: const Icon(Icons.album_rounded, color: AppTheme.accentViolet, size: 28),
+                        ),
+                      ),
+                    ),
+                    title: Text(
+                      pl.name,
+                      style: TextStyle(
+                        color: isSelected ? AppTheme.accentPink : Colors.white,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        children: [
+                          PlaylistSourceBadge(source: pl.source),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${pl.trackCount} canciones',
+                            style: const TextStyle(color: AppTheme.onSurfaceSub, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                    trailing: isSelected
+                        ? const Icon(Icons.check_circle_rounded, color: AppTheme.accentPink, size: 24)
+                        : const Icon(Icons.arrow_forward_ios_rounded, color: AppTheme.onSurfaceSub, size: 16),
+                    onTap: () async {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          duration: const Duration(seconds: 1),
+                          backgroundColor: const Color(0xFF1E293B),
+                          content: Text('Cargando catálogo completo de "${pl.name}"...'),
+                        ),
+                      );
+                      await ref.read(userPlaylistsProvider.notifier).selectPlaylist(
+                        pl,
+                        autoPlay: false,
+                        switchToLibrary: true,
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 // ─── Tab 0: Inicio ────────────────────────────────────────────────────────────
@@ -687,28 +800,29 @@ class _HomeTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final playlists     = ref.watch(playlistsProvider);
-    final services      = ref.watch(servicesProvider);
-    final discovery     = ref.watch(discoveryServiceProvider);
-    final audioNotifier = ref.read(audioServiceProvider.notifier);
+    final userPlaylists     = ref.watch(userPlaylistsProvider);
+    final featuredPlaylists = ref.watch(featuredPlaylistsProvider);
+    final services          = ref.watch(servicesProvider);
+    final discovery         = ref.watch(discoveryServiceProvider);
+    final audioNotifier     = ref.read(audioServiceProvider.notifier);
 
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
         const SliverToBoxAdapter(child: SizedBox(height: 100)),
 
-        // Playlists
+        // Playlists Recomendadas & Tendencias
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Tus Playlists',
+                Text('Recomendadas y Charts',
                     style: Theme.of(context).textTheme.titleLarge),
                 TextButton(
                   onPressed: () => _openAllPlaylistsModal(context, ref),
-                  child: const Text('Ver todo',
+                  child: const Text('Ver catálogo',
                       style: TextStyle(color: AppTheme.accentViolet)),
                 ),
               ],
@@ -716,10 +830,36 @@ class _HomeTab extends ConsumerWidget {
           ).animate().fadeIn(delay: 100.ms),
         ),
         SliverToBoxAdapter(
-          child: PlaylistCarousel(playlists: playlists)
-              .animate()
-              .fadeIn(delay: 150.ms),
+          child: PlaylistCarousel(
+            playlists: featuredPlaylists.isNotEmpty ? featuredPlaylists : userPlaylists,
+          ).animate().fadeIn(delay: 150.ms),
         ),
+
+        // Mis Playlists (si el usuario tiene listas personales)
+        if (userPlaylists.isNotEmpty) ...[
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Tus Playlists',
+                      style: Theme.of(context).textTheme.titleLarge),
+                  TextButton(
+                    onPressed: () => _openAllPlaylistsModal(context, ref),
+                    child: const Text('Ver todas',
+                        style: TextStyle(color: AppTheme.accentPink)),
+                  ),
+                ],
+              ),
+            ).animate().fadeIn(delay: 180.ms),
+          ),
+          SliverToBoxAdapter(
+            child: PlaylistCarousel(playlists: userPlaylists)
+                .animate()
+                .fadeIn(delay: 200.ms),
+          ),
+        ],
 
         // Servicios Conectados
         SliverToBoxAdapter(
@@ -728,7 +868,7 @@ class _HomeTab extends ConsumerWidget {
             child: Text('Servicios Conectados',
                     style: Theme.of(context).textTheme.titleLarge)
                 .animate()
-                .fadeIn(delay: 200.ms),
+                .fadeIn(delay: 220.ms),
           ),
         ),
         SliverToBoxAdapter(
@@ -762,8 +902,6 @@ class _HomeTab extends ConsumerWidget {
         ),
 
         const SliverToBoxAdapter(child: SizedBox(height: 120)),
-      ],
-    );
   }
 }
 
@@ -1022,13 +1160,17 @@ class _LibraryTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final playlists       = ref.watch(userPlaylistsProvider);
+    final featuredPlaylists = ref.watch(featuredPlaylistsProvider);
     final selectedPlaylist= ref.watch(selectedPlaylistProvider);
     final isLoading       = ref.watch(isPlaylistLoadingProvider);
     final tracks          = ref.watch(recentTracksProvider);
     final audioState      = ref.watch(audioServiceProvider);
     final audioNotifier   = ref.read(audioServiceProvider.notifier);
 
-    final activePlaylist  = selectedPlaylist ?? (playlists.isNotEmpty ? playlists.first : null);
+    final activePlaylist  = selectedPlaylist ??
+        (playlists.isNotEmpty
+            ? playlists.first
+            : (featuredPlaylists.isNotEmpty ? featuredPlaylists.first : null));
 
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),

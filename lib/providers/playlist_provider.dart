@@ -1,14 +1,15 @@
 // lib/providers/playlist_provider.dart
 // Reactive state management with Riverpod:
-//   • Dynamic user playlists explorer connected to active music provider (Deezer, Amazon, Spotify, Tidal)
-//   • Full-length track streaming & auto-pagination
+//   • Dual catalog architecture: User Personal Playlists & Recommended/Chart Playlists
+//   • Eradication of mock data & real stream resolution
 //   • Active navigation tab provider (0: Inicio, 1: Buscar, 2: Librería, 3: Ajustes)
-//   • Real-time track search provider
+//   • Dynamic connection status backed by hardware Keystore
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bella_music/models/playlist_model.dart';
 import 'package:bella_music/services/base_music_service.dart';
 import 'package:bella_music/services/audio_service.dart';
+import 'package:bella_music/services/secure_storage_service.dart';
 import 'package:logger/logger.dart';
 
 // ─── Selected Playlist & Loading State ────────────────────────────────────────
@@ -16,7 +17,7 @@ import 'package:logger/logger.dart';
 final selectedPlaylistProvider = StateProvider<Playlist?>((ref) => null);
 final isPlaylistLoadingProvider = StateProvider<bool>((ref) => false);
 
-// ─── User Playlists Notifier ──────────────────────────────────────────────────
+// ─── User Playlists Notifier (Mis Playlists) ───────────────────────────────────
 
 class UserPlaylistsNotifier extends StateNotifier<List<Playlist>> {
   UserPlaylistsNotifier(this._ref) : super(const []) {
@@ -28,21 +29,25 @@ class UserPlaylistsNotifier extends StateNotifier<List<Playlist>> {
 
   /// Queries the active connected music service for the user's personal playlists
   Future<void> fetchUserPlaylists({String? serviceId}) async {
-    _logger.i('Playlists: Consultando catálogo de playlists del usuario…');
+    _logger.i('Playlists: Consultando biblioteca personal del usuario…');
     try {
       final service = serviceId != null
           ? MusicServiceRegistry.get(serviceId)
           : await MusicServiceRegistry.getActiveService();
 
       final playlists = await service.getUserPlaylists();
+      state = playlists;
+
       if (playlists.isNotEmpty) {
-        state = playlists;
-        _logger.i('Playlists: ${playlists.length} playlists cargadas de ${service.displayName}.');
+        _logger.i('Playlists: ${playlists.length} playlists personales cargadas de ${service.displayName}.');
 
         // Seleccionar automáticamente la primera lista si aún no hay ninguna activa
         if (_ref.read(selectedPlaylistProvider) == null) {
           await selectPlaylist(playlists.first, autoPlay: false, switchToLibrary: false);
         }
+      } else {
+        _logger.d('Playlists: Sin listas personales de usuario aún, sincronizando recomendadas.');
+        await _ref.read(featuredPlaylistsProvider.notifier).fetchFeaturedPlaylists(serviceId: serviceId);
       }
     } catch (e) {
       _logger.e('Error al obtener playlists de usuario: $e');
@@ -95,6 +100,50 @@ final userPlaylistsProvider =
   (ref) => UserPlaylistsNotifier(ref),
 );
 
+// ─── Featured & Recommended Playlists Notifier ────────────────────────────────
+
+class FeaturedPlaylistsNotifier extends StateNotifier<List<Playlist>> {
+  FeaturedPlaylistsNotifier(this._ref) : super(const []) {
+    fetchFeaturedPlaylists();
+  }
+
+  final Ref _ref;
+  final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
+
+  Future<void> fetchFeaturedPlaylists({String? serviceId}) async {
+    _logger.i('Playlists: Consultando catálogo de recomendadas y charts oficiales…');
+    try {
+      final service = serviceId != null
+          ? MusicServiceRegistry.get(serviceId)
+          : await MusicServiceRegistry.getActiveService();
+
+      final playlists = await service.getFeaturedPlaylists();
+      if (playlists.isNotEmpty) {
+        state = playlists;
+        _logger.i('Playlists: ${playlists.length} playlists recomendadas de ${service.displayName}.');
+
+        // Si aún no hay ninguna seleccionada y el usuario no tiene personales, activar la primera
+        if (_ref.read(selectedPlaylistProvider) == null && _ref.read(userPlaylistsProvider).isEmpty) {
+          await _ref.read(userPlaylistsProvider.notifier).selectPlaylist(
+            playlists.first,
+            autoPlay: false,
+            switchToLibrary: false,
+          );
+        }
+      }
+    } catch (e) {
+      _logger.e('Error al obtener playlists recomendadas: $e');
+    }
+  }
+
+  void setPlaylists(List<Playlist> list) => state = list;
+}
+
+final featuredPlaylistsProvider =
+    StateNotifierProvider<FeaturedPlaylistsNotifier, List<Playlist>>(
+  (ref) => FeaturedPlaylistsNotifier(ref),
+);
+
 // Backwards-compatible alias for existing consumers
 final playlistsProvider = userPlaylistsProvider;
 
@@ -130,7 +179,7 @@ final searchQueryProvider = StateProvider<String>((ref) => '');
 final searchTracksProvider = StateProvider<List<Track>>((ref) => []);
 final isSearchingProvider = StateProvider<bool>((ref) => false);
 
-// ─── Services Notifier ──────────────────────────────────────────────────────
+// ─── Services Notifier (Keystore-backed Connection Indicators) ───────────────
 
 class ServicesNotifier extends StateNotifier<List<Map<String, String>>> {
   ServicesNotifier(this._ref)
@@ -139,29 +188,65 @@ class ServicesNotifier extends StateNotifier<List<Map<String, String>>> {
             'name': 'Deezer',
             'icon': '🎵',
             'color': '#EF4444',
-            'status': 'connected',
+            'status': 'checking',
           },
           {
             'name': 'Amazon Music',
             'icon': '🎶',
             'color': '#F97316',
-            'status': 'connected',
+            'status': 'checking',
           },
           {
             'name': 'Spotify',
             'icon': '🟢',
             'color': '#1DB954',
-            'status': 'connected',
+            'status': 'checking',
           },
           {
             'name': 'Tidal',
             'icon': '⬛',
             'color': '#00FFFF',
-            'status': 'connected',
+            'status': 'checking',
           },
-        ]);
+        ]) {
+    _initConnectionStatus();
+  }
 
   final Ref _ref;
+
+  Future<void> _initConnectionStatus() async {
+    final deezerToken = await SecureStorageService.instance.getDeezerToken();
+    final amazonToken = await SecureStorageService.instance.getAmazonToken();
+    final spotifyToken = await SecureStorageService.instance.getSpotifyToken();
+    final tidalToken = await SecureStorageService.instance.getTidalToken();
+
+    state = [
+      {
+        'name': 'Deezer',
+        'icon': '🎵',
+        'color': '#EF4444',
+        'status': (deezerToken != null && deezerToken.isNotEmpty) ? 'connected' : 'disconnected',
+      },
+      {
+        'name': 'Amazon Music',
+        'icon': '🎶',
+        'color': '#F97316',
+        'status': (amazonToken != null && amazonToken.isNotEmpty) ? 'connected' : 'disconnected',
+      },
+      {
+        'name': 'Spotify',
+        'icon': '🟢',
+        'color': '#1DB954',
+        'status': (spotifyToken != null && spotifyToken.isNotEmpty) ? 'connected' : 'disconnected',
+      },
+      {
+        'name': 'Tidal',
+        'icon': '⬛',
+        'color': '#00FFFF',
+        'status': (tidalToken != null && tidalToken.isNotEmpty) ? 'connected' : 'disconnected',
+      },
+    ];
+  }
 
   void updateStatus(String name, String status) {
     state = [
@@ -171,6 +256,7 @@ class ServicesNotifier extends StateNotifier<List<Map<String, String>>> {
 
     if (status == 'connected') {
       _ref.read(userPlaylistsProvider.notifier).fetchUserPlaylists(serviceId: name);
+      _ref.read(featuredPlaylistsProvider.notifier).fetchFeaturedPlaylists(serviceId: name);
     }
   }
 }
