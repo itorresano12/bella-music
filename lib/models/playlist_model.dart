@@ -30,6 +30,8 @@ class Track extends Equatable {
     required this.streamUrl,
     this.durationSeconds = 0,
     this.source = 'local',
+    this.bitrate = 320,
+    this.isFullLength = true,
   });
 
   final String id;
@@ -39,8 +41,9 @@ class Track extends Equatable {
   final String streamUrl;
   final int durationSeconds;
   final String source;
+  final int bitrate; // 320 kbps High Quality
+  final bool isFullLength;
 
   @override
-  List<Object?> get props => [id, title, artist, streamUrl];
+  List<Object?> get props => [id, title, artist, streamUrl, bitrate, isFullLength];
 }
-

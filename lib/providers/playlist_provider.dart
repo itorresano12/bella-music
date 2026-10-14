@@ -108,7 +108,7 @@ class RecentTracksNotifier extends StateNotifier<List<Track>> {
     try {
       final playlists = await DeezerService.instance.searchPlaylists('Tasty Santander');
       if (playlists.isNotEmpty) {
-        final tracks = await DeezerService.instance.getPlaylistTracks(playlists.first.id);
+        final tracks = await DeezerService.instance.getAllPlaylistTracks(playlists.first.id);
         if (tracks.isNotEmpty) {
           state = tracks;
         }

@@ -186,7 +186,12 @@ class _NowPlayingBarState extends ConsumerState<NowPlayingBar>
                       ),
                       const SizedBox(width: 8),
 
-                      // ── Controls ────────────────────────────────────────
+                      // ── Controls (Shuffle, Prev, Play/Pause, Next, Repeat) ──
+                      IconButton(
+                        icon: const Icon(Icons.shuffle_rounded, size: 20),
+                        color: audioState.isShuffle ? AppTheme.accentViolet : AppTheme.onSurfaceSub,
+                        onPressed: () => audioNotifier.toggleShuffle(),
+                      ),
                       IconButton(
                         icon: const Icon(Icons.skip_previous_rounded),
                         color: AppTheme.onSurface,
@@ -200,6 +205,18 @@ class _NowPlayingBarState extends ConsumerState<NowPlayingBar>
                         icon: const Icon(Icons.skip_next_rounded),
                         color: AppTheme.onSurface,
                         onPressed: () => audioNotifier.skipToNext(),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          audioState.repeatMode == RepeatMode.one
+                              ? Icons.repeat_one_rounded
+                              : Icons.repeat_rounded,
+                          size: 20,
+                        ),
+                        color: audioState.repeatMode != RepeatMode.off
+                            ? AppTheme.accentBlue
+                            : AppTheme.onSurfaceSub,
+                        onPressed: () => audioNotifier.toggleRepeat(),
                       ),
                     ],
                   ),

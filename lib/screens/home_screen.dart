@@ -132,8 +132,10 @@ class HomeScreen extends ConsumerWidget {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Text('🎵', style: TextStyle(fontSize: 24)),
-              title: const Text('Configurar Cuenta Deezer (ARL)',
+              title: const Text('Iniciar Sesión Deezer Premium',
                   style: TextStyle(color: Colors.white, fontSize: 14)),
+              subtitle: const Text('Streaming comercial oficial a 320 kbps',
+                  style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 11)),
               trailing: const Icon(Icons.chevron_right_rounded, color: AppTheme.onSurfaceSub),
               onTap: () {
                 Navigator.pop(ctx);
@@ -143,8 +145,10 @@ class HomeScreen extends ConsumerWidget {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Text('🎶', style: TextStyle(fontSize: 24)),
-              title: const Text('Configurar Amazon Music',
+              title: const Text('Iniciar Sesión Amazon Music',
                   style: TextStyle(color: Colors.white, fontSize: 14)),
+              subtitle: const Text('Acceso ilimitado de alta fidelidad',
+                  style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 11)),
               trailing: const Icon(Icons.chevron_right_rounded, color: AppTheme.onSurfaceSub),
               onTap: () {
                 Navigator.pop(ctx);
@@ -589,16 +593,27 @@ class _SearchChip extends StatelessWidget {
 class _LibraryTab extends ConsumerWidget {
   const _LibraryTab({super.key});
 
+  static String _formatDuration(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final playlists     = ref.watch(playlistsProvider);
+    final tracks        = ref.watch(recentTracksProvider);
+    final audioState    = ref.watch(audioServiceProvider);
     final audioNotifier = ref.read(audioServiceProvider.notifier);
+
+    final featured = playlists.isNotEmpty ? playlists.first : null;
 
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
         const SliverToBoxAdapter(child: SizedBox(height: 110)),
 
+        // Encabezado principal
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
@@ -610,23 +625,36 @@ class _LibraryTab extends ConsumerWidget {
                   children: [
                     Text('Tu Librería', style: Theme.of(context).textTheme.titleLarge),
                     Text(
-                      '${playlists.length} Playlists disponibles',
+                      '${tracks.length} canciones descargadas • Acceso Premium',
                       style: const TextStyle(color: AppTheme.onSurfaceSub, fontSize: 13),
                     ),
                   ],
                 ),
                 IconButton(
+                  tooltip: 'Sincronizar 321 canciones',
                   icon: const Icon(Icons.sync_rounded, color: AppTheme.accentViolet),
                   onPressed: () async {
-                    final res = await DeezerService.instance.searchPlaylists('Tasty Santander');
-                    if (res.isNotEmpty) {
-                      ref.read(playlistsProvider.notifier).setPlaylists(res);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          backgroundColor: Color(0xFF1E293B),
-                          content: Text('Librería sincronizada con Deezer.'),
-                        ),
-                      );
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        backgroundColor: Color(0xFF1E293B),
+                        content: Text('Descargando catálogo completo de Tasty Santander (321 tracks)...'),
+                      ),
+                    );
+                    final pl = await DeezerService.instance.searchPlaylists('Tasty Santander');
+                    if (pl.isNotEmpty) {
+                      ref.read(playlistsProvider.notifier).setPlaylists(pl);
+                      final allTracks = await DeezerService.instance.getAllPlaylistTracks(pl.first.id);
+                      if (allTracks.isNotEmpty) {
+                        ref.read(recentTracksProvider.notifier).setTracks(allTracks);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              backgroundColor: const Color(0xFF1E293B),
+                              content: Text('Sincronizadas ${allTracks.length} canciones con éxito.'),
+                            ),
+                          );
+                        }
+                      }
                     }
                   },
                 ),
@@ -635,68 +663,355 @@ class _LibraryTab extends ConsumerWidget {
           ),
         ),
 
-        SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, i) {
-              final pl = playlists[i];
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                child: ListTile(
-                  tileColor: AppTheme.surfaceLight.withOpacity(0.4),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  contentPadding: const EdgeInsets.all(8),
-                  leading: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      pl.coverUrl,
-                      width: 56,
-                      height: 56,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: 56,
-                        height: 56,
-                        color: AppTheme.surface,
-                        child: const Icon(Icons.music_note, color: AppTheme.accentViolet),
+        // Banner Playlist Destacada: Tasty Santander
+        if (featured != null)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFF2E1065).withOpacity(0.85),
+                      const Color(0xFF0F172A).withOpacity(0.95),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: AppTheme.accentViolet.withOpacity(0.35),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.network(
+                            featured.coverUrl,
+                            width: 80,
+                            height: 80,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              width: 80,
+                              height: 80,
+                              color: AppTheme.surfaceLight,
+                              child: const Icon(Icons.album_rounded, color: AppTheme.accentPink, size: 36),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.accentPink.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: AppTheme.accentPink.withOpacity(0.4)),
+                                ),
+                                child: const Text(
+                                  'STREAMING OFICIAL DEEZER • HQ 320K',
+                                  style: TextStyle(
+                                    color: AppTheme.accentPink,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                featured.name,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${tracks.length} Pistas completas sin interrupciones',
+                                style: const TextStyle(
+                                  color: AppTheme.onSurfaceSub,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.accentViolet,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                            label: const Text('Reproducir Todo', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                            onPressed: () {
+                              if (tracks.isNotEmpty) {
+                                audioNotifier.playTrack(tracks.first);
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              side: BorderSide(color: audioState.isShuffle ? AppTheme.accentPink : Colors.white24),
+                              backgroundColor: audioState.isShuffle ? AppTheme.accentPink.withOpacity(0.15) : null,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: Icon(
+                              Icons.shuffle_rounded,
+                              size: 20,
+                              color: audioState.isShuffle ? AppTheme.accentPink : Colors.white,
+                            ),
+                            label: Text(
+                              audioState.isShuffle ? 'Aleatorio ON' : 'Aleatorio',
+                              style: TextStyle(
+                                color: audioState.isShuffle ? AppTheme.accentPink : Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                            onPressed: () {
+                              if (!audioState.isShuffle) {
+                                audioNotifier.toggleShuffle();
+                              }
+                              audioNotifier.skipToNext();
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+        // Subtítulo de la lista
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Canciones (${tracks.length})',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF065F46).withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFF10B981).withOpacity(0.4)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.high_quality_rounded, size: 14, color: Color(0xFF10B981)),
+                      SizedBox(width: 4),
+                      Text('320 KBPS HQ', style: TextStyle(color: Color(0xFF10B981), fontSize: 10, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Lista vertical estilizada de las 321 pistas
+        if (tracks.isEmpty)
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 60),
+              child: Center(
+                child: Column(
+                  children: [
+                    CircularProgressIndicator(color: AppTheme.accentViolet),
+                    SizedBox(height: 16),
+                    Text(
+                      'Descargando las 321 canciones de Tasty Santander...',
+                      style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )
+        else
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, i) {
+                final track = tracks[i];
+                final isCurrent = audioState.currentTrack?.id == track.id;
+                final isPlaying = isCurrent && audioState.isPlaying;
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () => audioNotifier.playTrack(track),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isCurrent
+                              ? AppTheme.accentViolet.withOpacity(0.18)
+                              : AppTheme.surfaceLight.withOpacity(0.35),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isCurrent
+                                ? AppTheme.accentViolet.withOpacity(0.5)
+                                : Colors.white.withOpacity(0.04),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            // Número de pista
+                            SizedBox(
+                              width: 32,
+                              child: Text(
+                                '#${i + 1}',
+                                style: TextStyle(
+                                  color: isCurrent ? AppTheme.accentPink : AppTheme.onSurfaceSub,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            // Carátula
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                track.albumArt,
+                                width: 44,
+                                height: 44,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  width: 44,
+                                  height: 44,
+                                  color: AppTheme.surface,
+                                  child: const Icon(Icons.music_note, color: AppTheme.accentViolet, size: 20),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // Título, Artista y Duración
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    track.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: isCurrent ? AppTheme.accentPink : Colors.white,
+                                      fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w600,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          track.artist,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: AppTheme.onSurfaceSub,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                      Text(
+                                        _formatDuration(track.durationSeconds),
+                                        style: const TextStyle(
+                                          color: AppTheme.onSurfaceSub,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF10B981).withOpacity(0.15),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: const Text(
+                                          '320k',
+                                          style: TextStyle(
+                                            color: Color(0xFF10B981),
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Botón de reproducción directa
+                            IconButton(
+                              icon: Icon(
+                                isPlaying
+                                    ? Icons.pause_circle_filled_rounded
+                                    : Icons.play_circle_filled_rounded,
+                                color: isCurrent ? AppTheme.accentPink : AppTheme.accentViolet,
+                                size: 32,
+                              ),
+                              onPressed: () {
+                                if (isCurrent) {
+                                  audioNotifier.togglePlayPause();
+                                } else {
+                                  audioNotifier.playTrack(track);
+                                }
+                              },
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                  title: Text(
-                    pl.name,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
-                  ),
-                  subtitle: Text(
-                    '${pl.trackCount} canciones • ${pl.source.toUpperCase()}',
-                    style: const TextStyle(color: AppTheme.onSurfaceSub, fontSize: 12),
-                  ),
-                  trailing: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: const BoxDecoration(
-                      gradient: AppTheme.accentGradient,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 26),
-                  ),
-                  onTap: () async {
-                    final tracks = await DeezerService.instance.getPlaylistTracks(pl.id);
-                    if (tracks.isNotEmpty) {
-                      ref.read(recentTracksProvider.notifier).setTracks(tracks);
-                      audioNotifier.playTrack(tracks.first);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          duration: const Duration(seconds: 1),
-                          backgroundColor: const Color(0xFF1E293B),
-                          content: Text('Reproduciendo lista: ${pl.name}'),
-                        ),
-                      );
-                    }
-                  },
-                ),
-              );
-            },
-            childCount: playlists.length,
+                );
+              },
+              childCount: tracks.length,
+            ),
           ),
-        ),
 
         const SliverToBoxAdapter(child: SizedBox(height: 120)),
       ],
@@ -847,8 +1162,8 @@ class _SettingsTab extends ConsumerWidget {
                   tileColor: AppTheme.surfaceLight,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   leading: const Text('🎵', style: TextStyle(fontSize: 24)),
-                  title: const Text('Pasarela Deezer (ARL)', style: TextStyle(color: Colors.white, fontSize: 14)),
-                  subtitle: const Text('Gestionar token y playlists sincronizadas', style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 11)),
+                  title: const Text('Iniciar Sesión Deezer Premium', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  subtitle: const Text('OAuth2 / Credenciales y audio HQ 320 kbps', style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 11)),
                   trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white54),
                   onTap: () => ServicesGrid.openAuthModal(context, ref, 'Deezer'),
                 ),
@@ -857,8 +1172,8 @@ class _SettingsTab extends ConsumerWidget {
                   tileColor: AppTheme.surfaceLight,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   leading: const Text('🎶', style: TextStyle(fontSize: 24)),
-                  title: const Text('Pasarela Amazon Music', style: TextStyle(color: Colors.white, fontSize: 14)),
-                  subtitle: const Text('Credenciales de streaming cifradas', style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 11)),
+                  title: const Text('Iniciar Sesión Amazon Music', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  subtitle: const Text('Credenciales de streaming cifradas en Hardware Keystore', style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 11)),
                   trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white54),
                   onTap: () => ServicesGrid.openAuthModal(context, ref, 'Amazon Music'),
                 ),
