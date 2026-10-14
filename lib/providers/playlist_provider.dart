@@ -6,6 +6,7 @@
 //   • Dynamic connection status backed by hardware Keystore
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import 'package:bella_music/models/playlist_model.dart';
 import 'package:bella_music/services/base_music_service.dart';
 import 'package:bella_music/services/audio_service.dart';
@@ -216,34 +217,41 @@ class ServicesNotifier extends StateNotifier<List<Map<String, String>>> {
 
   Future<void> _initConnectionStatus() async {
     final deezerToken = await SecureStorageService.instance.getDeezerToken();
+    final deezerUserId = await SecureStorageService.instance.getDeezerUserId();
     final amazonToken = await SecureStorageService.instance.getAmazonToken();
     final spotifyToken = await SecureStorageService.instance.getSpotifyToken();
     final tidalToken = await SecureStorageService.instance.getTidalToken();
+
+    final isDeezer = (deezerToken != null && deezerToken.isNotEmpty) ||
+        (deezerUserId != null && deezerUserId.isNotEmpty && deezerUserId != '0');
+    final isAmazon = amazonToken != null && amazonToken.isNotEmpty;
+    final isSpotify = spotifyToken != null && spotifyToken.isNotEmpty;
+    final isTidal = tidalToken != null && tidalToken.isNotEmpty;
 
     state = [
       {
         'name': 'Deezer',
         'icon': '🎵',
         'color': '#EF4444',
-        'status': (deezerToken != null && deezerToken.isNotEmpty) ? 'connected' : 'disconnected',
+        'status': isDeezer ? 'connected' : 'disconnected',
       },
       {
         'name': 'Amazon Music',
         'icon': '🎶',
         'color': '#F97316',
-        'status': (amazonToken != null && amazonToken.isNotEmpty) ? 'connected' : 'disconnected',
+        'status': isAmazon ? 'connected' : 'disconnected',
       },
       {
         'name': 'Spotify',
         'icon': '🟢',
         'color': '#1DB954',
-        'status': (spotifyToken != null && spotifyToken.isNotEmpty) ? 'connected' : 'disconnected',
+        'status': isSpotify ? 'connected' : 'disconnected',
       },
       {
         'name': 'Tidal',
         'icon': '⬛',
         'color': '#00FFFF',
-        'status': (tidalToken != null && tidalToken.isNotEmpty) ? 'connected' : 'disconnected',
+        'status': isTidal ? 'connected' : 'disconnected',
       },
     ];
   }
@@ -258,6 +266,27 @@ class ServicesNotifier extends StateNotifier<List<Map<String, String>>> {
       _ref.read(userPlaylistsProvider.notifier).fetchUserPlaylists(serviceId: name);
       _ref.read(featuredPlaylistsProvider.notifier).fetchFeaturedPlaylists(serviceId: name);
     }
+  }
+
+  Future<void> disconnectService(String name) async {
+    final lower = name.toLowerCase();
+    if (lower.contains('deezer')) {
+      await SecureStorageService.instance.clearDeezer();
+    } else if (lower.contains('amazon')) {
+      await SecureStorageService.instance.clearAmazon();
+    } else if (lower.contains('spotify')) {
+      await SecureStorageService.instance.clearSpotify();
+    } else if (lower.contains('tidal')) {
+      await SecureStorageService.instance.clearTidal();
+    }
+
+    try {
+      final cookieManager = WebViewCookieManager();
+      await cookieManager.clearCookies();
+    } catch (_) {}
+
+    updateStatus(name, 'disconnected');
+    await _ref.read(userPlaylistsProvider.notifier).fetchUserPlaylists();
   }
 }
 

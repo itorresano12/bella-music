@@ -527,6 +527,104 @@ class _AllPlaylistsModalContentState
   int _activeCategoryIndex = 0; // 0: Recomendadas, 1: Mis Playlists
 
   @override
+  void initState() {
+    super.initState();
+    final userPlaylists = ref.read(userPlaylistsProvider);
+    if (userPlaylists.isNotEmpty) {
+      _activeCategoryIndex = 1;
+    }
+  }
+
+  void _showImportDialog(BuildContext context) {
+    final textCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Importar Playlist', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Pega el enlace de Deezer o escribe el nombre (ej. "Tasty Santander", "Musicote"):',
+              style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: textCtrl,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'Tasty Santander o enlace...',
+                hintStyle: const TextStyle(color: Colors.white38),
+                filled: true,
+                fillColor: const Color(0xFF0F172A),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar', style: TextStyle(color: Colors.white60)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.accentPink,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () async {
+              final query = textCtrl.text.trim();
+              if (query.isEmpty) return;
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  duration: const Duration(seconds: 2),
+                  backgroundColor: const Color(0xFF1E293B),
+                  content: Text('Buscando playlist "$query"...'),
+                ),
+              );
+              final pl = await DeezerService.instance.importPlaylistByQueryOrUrl(query);
+              if (pl != null) {
+                final current = ref.read(userPlaylistsProvider);
+                if (!current.any((p) => p.id == pl.id)) {
+                  ref.read(userPlaylistsProvider.notifier).setPlaylists([pl, ...current]);
+                }
+                await ref.read(userPlaylistsProvider.notifier).selectPlaylist(pl, autoPlay: false, switchToLibrary: true);
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      duration: const Duration(seconds: 3),
+                      backgroundColor: const Color(0xFF10B981),
+                      content: Text('¡Playlist "${pl.name}" importada (${pl.trackCount} temas)!'),
+                    ),
+                  );
+                }
+              } else {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      backgroundColor: Color(0xFFEF4444),
+                      content: Text('No se encontró ninguna playlist con ese nombre o URL.'),
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Importar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final userPlaylists = ref.watch(userPlaylistsProvider);
     final featuredPlaylists = ref.watch(featuredPlaylistsProvider);
@@ -586,24 +684,34 @@ class _AllPlaylistsModalContentState
                   ),
                 ],
               ),
-              if (isLoading)
-                const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: AppTheme.accentViolet,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.add_link_rounded, color: AppTheme.accentPink, size: 24),
+                    tooltip: 'Importar playlist por nombre o URL',
+                    onPressed: () => _showImportDialog(context),
                   ),
-                )
-              else
-                IconButton(
-                  icon: const Icon(Icons.refresh_rounded, color: AppTheme.accentViolet, size: 24),
-                  tooltip: 'Actualizar listas',
-                  onPressed: () {
-                    ref.read(userPlaylistsProvider.notifier).fetchUserPlaylists();
-                    ref.read(featuredPlaylistsProvider.notifier).fetchFeaturedPlaylists();
-                  },
-                ),
+                  if (isLoading)
+                    const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: AppTheme.accentViolet,
+                      ),
+                    )
+                  else
+                    IconButton(
+                      icon: const Icon(Icons.refresh_rounded, color: AppTheme.accentViolet, size: 24),
+                      tooltip: 'Actualizar listas',
+                      onPressed: () {
+                        ref.read(userPlaylistsProvider.notifier).fetchUserPlaylists();
+                        ref.read(featuredPlaylistsProvider.notifier).fetchFeaturedPlaylists();
+                      },
+                    ),
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 14),
@@ -811,40 +919,29 @@ class _HomeTab extends ConsumerWidget {
       slivers: [
         const SliverToBoxAdapter(child: SizedBox(height: 100)),
 
-        // Playlists Recomendadas & Tendencias
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Recomendadas y Charts',
-                    style: Theme.of(context).textTheme.titleLarge),
-                TextButton(
-                  onPressed: () => _openAllPlaylistsModal(context, ref),
-                  child: const Text('Ver catálogo',
-                      style: TextStyle(color: AppTheme.accentViolet)),
-                ),
-              ],
-            ),
-          ).animate().fadeIn(delay: 100.ms),
-        ),
-        SliverToBoxAdapter(
-          child: PlaylistCarousel(
-            playlists: featuredPlaylists.isNotEmpty ? featuredPlaylists : userPlaylists,
-          ).animate().fadeIn(delay: 150.ms),
-        ),
-
-        // Mis Playlists (si el usuario tiene listas personales)
+        // Cuando el usuario tiene listas personales, mostrar primero "Mis Playlists"
         if (userPlaylists.isNotEmpty) ...[
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Tus Playlists',
-                      style: Theme.of(context).textTheme.titleLarge),
+                  Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppTheme.accentPink,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text('Mis Playlists',
+                          style: Theme.of(context).textTheme.titleLarge),
+                    ],
+                  ),
                   TextButton(
                     onPressed: () => _openAllPlaylistsModal(context, ref),
                     child: const Text('Ver todas',
@@ -852,12 +949,60 @@ class _HomeTab extends ConsumerWidget {
                   ),
                 ],
               ),
-            ).animate().fadeIn(delay: 180.ms),
+            ).animate().fadeIn(delay: 100.ms),
           ),
           SliverToBoxAdapter(
             child: PlaylistCarousel(playlists: userPlaylists)
                 .animate()
+                .fadeIn(delay: 150.ms),
+          ),
+
+          // Playlists Recomendadas & Tendencias a continuación
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Recomendadas y Charts',
+                      style: Theme.of(context).textTheme.titleLarge),
+                  TextButton(
+                    onPressed: () => _openAllPlaylistsModal(context, ref),
+                    child: const Text('Ver catálogo',
+                        style: TextStyle(color: AppTheme.accentViolet)),
+                  ),
+                ],
+              ),
+            ).animate().fadeIn(delay: 180.ms),
+          ),
+          SliverToBoxAdapter(
+            child: PlaylistCarousel(playlists: featuredPlaylists)
+                .animate()
                 .fadeIn(delay: 200.ms),
+          ),
+        ] else ...[
+          // Si aún no hay listas de usuario, mostrar recomendaciones
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Recomendadas y Charts',
+                      style: Theme.of(context).textTheme.titleLarge),
+                  TextButton(
+                    onPressed: () => _openAllPlaylistsModal(context, ref),
+                    child: const Text('Ver catálogo',
+                        style: TextStyle(color: AppTheme.accentViolet)),
+                  ),
+                ],
+              ),
+            ).animate().fadeIn(delay: 100.ms),
+          ),
+          SliverToBoxAdapter(
+            child: PlaylistCarousel(
+              playlists: featuredPlaylists.isNotEmpty ? featuredPlaylists : userPlaylists,
+            ).animate().fadeIn(delay: 150.ms),
           ),
         ],
 
@@ -1628,6 +1773,7 @@ class _SettingsTab extends ConsumerWidget {
     final discovery = ref.watch(discoveryServiceProvider);
     final discoveryNotifier = ref.read(discoveryServiceProvider.notifier);
     final isWifi = discovery.mode == AudioOutputMode.wifiSpeaker;
+    final services = ref.watch(servicesProvider);
 
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
@@ -1756,47 +1902,96 @@ class _SettingsTab extends ConsumerWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Column(
-              children: [
-                ListTile(
-                  tileColor: AppTheme.surfaceLight,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  leading: const Text('🎵', style: TextStyle(fontSize: 24)),
-                  title: const Text('Iniciar Sesión Deezer Premium', style: TextStyle(color: Colors.white, fontSize: 14)),
-                  subtitle: const Text('OAuth2 / Credenciales y audio HQ 320 kbps', style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 11)),
-                  trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white54),
-                  onTap: () => ServicesGrid.openAuthModal(context, ref, 'Deezer'),
-                ),
-                const SizedBox(height: 10),
-                ListTile(
-                  tileColor: AppTheme.surfaceLight,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  leading: const Text('🎶', style: TextStyle(fontSize: 24)),
-                  title: const Text('Iniciar Sesión Amazon Music', style: TextStyle(color: Colors.white, fontSize: 14)),
-                  subtitle: const Text('Credenciales de streaming cifradas en Hardware Keystore', style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 11)),
-                  trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white54),
-                  onTap: () => ServicesGrid.openAuthModal(context, ref, 'Amazon Music'),
-                ),
-                const SizedBox(height: 10),
-                ListTile(
-                  tileColor: AppTheme.surfaceLight,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  leading: const Text('🟢', style: TextStyle(fontSize: 24)),
-                  title: const Text('Iniciar Sesión Spotify Premium', style: TextStyle(color: Colors.white, fontSize: 14)),
-                  subtitle: const Text('Streaming comercial y playlists en la nube', style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 11)),
-                  trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white54),
-                  onTap: () => ServicesGrid.openAuthModal(context, ref, 'Spotify'),
-                ),
-                const SizedBox(height: 10),
-                ListTile(
-                  tileColor: AppTheme.surfaceLight,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  leading: const Text('⬛', style: TextStyle(fontSize: 24)),
-                  title: const Text('Iniciar Sesión Tidal HiFi', style: TextStyle(color: Colors.white, fontSize: 14)),
-                  subtitle: const Text('Streaming Lossless Master Audio a 320+ kbps', style: TextStyle(color: AppTheme.onSurfaceSub, fontSize: 11)),
-                  trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white54),
-                  onTap: () => ServicesGrid.openAuthModal(context, ref, 'Tidal'),
-                ),
-              ],
+              children: services.map((svc) {
+                final name = svc['name'] ?? '';
+                final icon = svc['icon'] ?? '🎵';
+                final isConnected = svc['status'] == 'connected';
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppTheme.surfaceLight,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isConnected
+                            ? const Color(0xFF10B981).withOpacity(0.3)
+                            : Colors.white.withOpacity(0.04),
+                      ),
+                    ),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      leading: Text(icon, style: const TextStyle(fontSize: 24)),
+                      title: Row(
+                        children: [
+                          Text(
+                            name,
+                            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isConnected ? const Color(0xFF10B981) : Colors.white24,
+                              boxShadow: isConnected
+                                  ? [
+                                      BoxShadow(
+                                        color: const Color(0xFF10B981).withOpacity(0.6),
+                                        blurRadius: 6,
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                      subtitle: Text(
+                        isConnected
+                            ? 'Conectado · Cuenta Activa'
+                            : 'Iniciar sesión con tu cuenta oficial',
+                        style: TextStyle(
+                          color: isConnected ? const Color(0xFF10B981) : AppTheme.onSurfaceSub,
+                          fontSize: 11,
+                          fontWeight: isConnected ? FontWeight.w600 : FontWeight.normal,
+                        ),
+                      ),
+                      trailing: isConnected
+                          ? OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFFEF4444),
+                                side: BorderSide(color: const Color(0xFFEF4444).withOpacity(0.6)),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              onPressed: () async {
+                                await ref.read(servicesProvider.notifier).disconnectService(name);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      backgroundColor: const Color(0xFF1E293B),
+                                      content: Text('Sesión de $name desconectada y cookies limpiadas.'),
+                                    ),
+                                  );
+                                }
+                              },
+                              child: const Text('Desconectar', style: TextStyle(fontSize: 11)),
+                            )
+                          : ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.accentViolet,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              onPressed: () => ServicesGrid.openAuthModal(context, ref, name),
+                              child: const Text('Conectar', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                            ),
+                    ),
+                  ),
+                );
+              }).toList(),
             ),
           ),
         ),

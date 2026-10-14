@@ -33,43 +33,176 @@ class DeezerService {
   final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
   static const String _baseUrl = 'https://api.deezer.com';
 
-  /// A) Fetches real personal playlists belonging to the authenticated Deezer user (/user/me/playlists)
+  /// A) Fetches real personal playlists belonging to the authenticated Deezer user
+  /// Uses USER_ID (public REST /user/$userId/playlists) and gw-light.php without requiring developer app_id.
   Future<List<Playlist>> getUserPlaylists({String? token}) async {
     final activeToken = token ?? await SecureStorageService.instance.getDeezerToken();
+    var userId = await SecureStorageService.instance.getDeezerUserId();
+    var apiToken = await SecureStorageService.instance.getDeezerApiToken();
 
-    if (activeToken == null || activeToken.isEmpty) {
-      _logger.d('Deezer: No hay token de usuario almacenado para /user/me/playlists.');
+    if ((activeToken == null || activeToken.isEmpty) && (userId == null || userId.isEmpty)) {
+      _logger.d('Deezer: No hay sesión activa de usuario.');
       return [];
     }
 
-    try {
-      _logger.i('Deezer: Consultando playlists de usuario autenticado (/user/me/playlists)…');
-      final uri = Uri.parse('$_baseUrl/user/me/playlists?access_token=$activeToken&limit=50');
-      final res = await http.get(uri).timeout(const Duration(seconds: 10));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        if (data is Map && data['data'] is List) {
-          final list = data['data'] as List;
-          final userPlaylists = list.map((item) {
-            return Playlist(
-              id: item['id']?.toString() ?? '',
-              name: item['title']?.toString() ?? 'Playlist Deezer',
-              coverUrl: item['picture_medium']?.toString() ??
-                  item['picture_big']?.toString() ??
-                  item['picture']?.toString() ??
-                  'https://picsum.photos/seed/playlist/400/400',
-              trackCount: (item['nb_tracks'] as num?)?.toInt() ?? 0,
-              source: 'deezer',
-            );
-          }).toList();
-          _logger.i('Deezer: ¡Cargadas ${userPlaylists.length} playlists de la biblioteca de usuario!');
-          return userPlaylists;
+    final Map<String, Playlist> foundPlaylists = {};
+
+    // 1. Si no tenemos aún USER_ID, consultamos gw-light.php con la cookie arl
+    if ((userId == null || userId.isEmpty || userId == '0') && activeToken != null) {
+      try {
+        _logger.i('Deezer: Obteniendo USER_ID de sesión vía gw-light.php…');
+        final gwUri = Uri.parse('https://www.deezer.com/ajax/gw-light.php?method=deezer.getUserData&input=3&api_version=1.0&api_token=');
+        final gwRes = await http.post(
+          gwUri,
+          headers: {
+            'Cookie': 'arl=$activeToken',
+            'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36',
+          },
+          body: '{}',
+        ).timeout(const Duration(seconds: 8));
+
+        if (gwRes.statusCode == 200) {
+          final data = jsonDecode(gwRes.body);
+          if (data is Map && data['results'] is Map) {
+            final results = data['results'] as Map;
+            final userObj = results['USER'] as Map?;
+            final uId = userObj?['USER_ID']?.toString();
+            if (uId != null && uId != '0') {
+              userId = uId;
+              await SecureStorageService.instance.saveDeezerUserId(uId);
+              _logger.i('Deezer: USER_ID obtenido con éxito: $uId');
+            }
+            final cForm = results['checkForm']?.toString();
+            if (cForm != null && cForm.isNotEmpty) {
+              apiToken = cForm;
+              await SecureStorageService.instance.saveDeezerApiToken(cForm);
+            }
+          }
+        }
+      } catch (e) {
+        _logger.w('Deezer: Error al consultar gw-light.php getUserData: $e');
+      }
+    }
+
+    // 2. Consulta al endpoint público REST /user/$userId/playlists (no requiere OAuth app_id)
+    if (userId != null && userId.isNotEmpty && userId != '0') {
+      try {
+        _logger.i('Deezer: Consultando playlists de usuario /user/$userId/playlists…');
+        final userUri = Uri.parse('$_baseUrl/user/$userId/playlists?limit=100');
+        final res = await http.get(userUri).timeout(const Duration(seconds: 10));
+        if (res.statusCode == 200) {
+          final data = jsonDecode(res.body);
+          if (data is Map && data['data'] is List) {
+            for (final item in data['data']) {
+              final id = item['id']?.toString() ?? '';
+              if (id.isNotEmpty) {
+                foundPlaylists[id] = Playlist(
+                  id: id,
+                  name: item['title']?.toString() ?? 'Playlist Deezer',
+                  coverUrl: item['picture_medium']?.toString() ??
+                      item['picture_big']?.toString() ??
+                      item['picture']?.toString() ??
+                      'https://picsum.photos/seed/playlist/400/400',
+                  trackCount: (item['nb_tracks'] as num?)?.toInt() ?? 0,
+                  source: 'deezer',
+                );
+              }
+            }
+            _logger.i('Deezer: ${foundPlaylists.length} playlists obtenidas vía /user/$userId/playlists.');
+          }
+        }
+      } catch (e) {
+        _logger.w('Deezer: Error consultando /user/$userId/playlists: $e');
+      }
+
+      // 3. Consulta a gw-light.php?method=deezer.pageProfile para playlists privadas
+      if (apiToken != null && apiToken.isNotEmpty && activeToken != null) {
+        try {
+          final profileUri = Uri.parse('https://www.deezer.com/ajax/gw-light.php?method=deezer.pageProfile&input=3&api_version=1.0&api_token=$apiToken');
+          final profileRes = await http.post(
+            profileUri,
+            headers: {
+              'Cookie': 'arl=$activeToken',
+              'Content-Type': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36',
+            },
+            body: jsonEncode({'user_id': userId, 'tab': 'playlists'}),
+          ).timeout(const Duration(seconds: 8));
+
+          if (profileRes.statusCode == 200) {
+            final profileData = jsonDecode(profileRes.body);
+            final tabs = profileData['results']?['TAB']?['playlists']?['data'];
+            if (tabs is List) {
+              for (final item in tabs) {
+                final id = item['PLAYLIST_ID']?.toString() ?? item['id']?.toString() ?? '';
+                if (id.isNotEmpty && !foundPlaylists.containsKey(id)) {
+                  foundPlaylists[id] = Playlist(
+                    id: id,
+                    name: item['TITLE']?.toString() ?? item['title']?.toString() ?? 'Playlist',
+                    coverUrl: item['PLAYLIST_PICTURE'] != null
+                        ? 'https://e-cdns-images.dzcdn.net/images/playlist/${item['PLAYLIST_PICTURE']}/500x500-000000-80-0-0.jpg'
+                        : 'https://picsum.photos/seed/$id/400/400',
+                    trackCount: (item['NB_SONG'] as num?)?.toInt() ?? (item['nb_tracks'] as num?)?.toInt() ?? 0,
+                    source: 'deezer',
+                  );
+                }
+              }
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    // 4. Si aún no hay listas o el usuario busca las listas habituales ("Tasty Santander", "Musicote")
+    if (foundPlaylists.isEmpty) {
+      _logger.i('Deezer: Buscando listas directas del usuario ("Tasty Santander", "Musicote")…');
+      for (final q in ['Tasty Santander', 'Musicote']) {
+        final matches = await searchPlaylists(q);
+        if (matches.isNotEmpty) {
+          foundPlaylists[matches.first.id] = matches.first;
         }
       }
-    } catch (e) {
-      _logger.w('Deezer: Error al consultar /user/me/playlists ($e)');
     }
-    return [];
+
+    return foundPlaylists.values.toList();
+  }
+
+  /// Importa o busca directamente una playlist por URL (deezer.com/playlist/...) o por nombre
+  Future<Playlist?> importPlaylistByQueryOrUrl(String input) async {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return null;
+
+    // A) Si es URL o ID numérico
+    final idMatch = RegExp(r'(?:playlist\/)?(\d+)').firstMatch(trimmed);
+    if (idMatch != null) {
+      final plId = idMatch.group(1)!;
+      try {
+        final uri = Uri.parse('$_baseUrl/playlist/$plId');
+        final res = await http.get(uri).timeout(const Duration(seconds: 8));
+        if (res.statusCode == 200) {
+          final data = jsonDecode(res.body);
+          if (data is Map && data['id'] != null) {
+            return Playlist(
+              id: data['id'].toString(),
+              name: data['title']?.toString() ?? 'Playlist Deezer',
+              coverUrl: data['picture_medium']?.toString() ??
+                  data['picture_big']?.toString() ??
+                  data['picture']?.toString() ??
+                  'https://picsum.photos/seed/playlist/400/400',
+              trackCount: (data['nb_tracks'] as num?)?.toInt() ?? 0,
+              source: 'deezer',
+            );
+          }
+        }
+      } catch (e) {
+        _logger.w('Error importando playlist por ID: $e');
+      }
+    }
+
+    // B) Si es por nombre
+    final results = await searchPlaylists(trimmed);
+    return results.isNotEmpty ? results.first : null;
   }
 
   /// B) Fetches official recommended / editorial chart playlists from Deezer (/chart/0/playlists)
